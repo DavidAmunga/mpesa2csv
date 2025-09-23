@@ -1,5 +1,13 @@
 # mpesa2csv
 
+## 0.0.4
+
+### Patch Changes
+
+- ee30c95: fix: macos release
+- f63df72: fix: macos release
+- 2ea4acc: fix: release process
+
 ## 0.0.3
 
 ### Patch Changes
