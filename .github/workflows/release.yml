@@ -7,16 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  create-release-branch:
-    name: Create Release Branch
-    uses: ./.github/workflows/reusable-create-release-branch.yml
-    with:
-      version: ${{ github.ref_name }}
-      max_branches: 5
-    secrets: inherit
-
   publish-tauri:
-    needs: [create-release-branch]
     permissions:
       contents: write
     strategy:
