@@ -325,18 +325,27 @@ jobs:
               found { print }
             ' CHANGELOG.md | sed '/^$/d' | head -30)
             
+            # Debug output
+            echo "Debug: VERSION=$VERSION"
+            echo "Debug: CHANGELOG_CONTENT length: $(echo "$CHANGELOG_CONTENT" | wc -c | tr -d ' ')"
+            if [ -n "$CHANGELOG_CONTENT" ]; then
+              echo "Debug: Found changelog content for version $VERSION"
+            else
+              echo "Debug: No changelog content found for version $VERSION"
+            fi
+            
             # Get previous version for comparison link
             PREVIOUS_VERSION=$(awk '/^## / && !/'"$VERSION"'/ { print $2; exit }' CHANGELOG.md)
             
             if [ -n "$CHANGELOG_CONTENT" ]; then
-              # Analyze change types
-              FEATURES=$(echo "$CHANGELOG_CONTENT" | grep "feat:" | wc -l | tr -d ' ')
-              FIXES=$(echo "$CHANGELOG_CONTENT" | grep "fix:" | wc -l | tr -d ' ')
+              # Analyze change types - handle both "feat:" and "hash: feat:" formats
+              FEATURES=$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?feat:" | wc -l | tr -d ' ')
+              FIXES=$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?fix:" | wc -l | tr -d ' ')
               BREAKING=$(echo "$CHANGELOG_CONTENT" | grep -E "BREAKING CHANGE|!" | wc -l | tr -d ' ')
-              DOCS=$(echo "$CHANGELOG_CONTENT" | grep "docs:" | wc -l | tr -d ' ')
-              PERF=$(echo "$CHANGELOG_CONTENT" | grep "perf:" | wc -l | tr -d ' ')
-              REFACTOR=$(echo "$CHANGELOG_CONTENT" | grep "refactor:" | wc -l | tr -d ' ')
-              CHORE=$(echo "$CHANGELOG_CONTENT" | grep "chore:" | wc -l | tr -d ' ')
+              DOCS=$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?docs:" | wc -l | tr -d ' ')
+              PERF=$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?perf:" | wc -l | tr -d ' ')
+              REFACTOR=$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?refactor:" | wc -l | tr -d ' ')
+              CHORE=$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?chore:" | wc -l | tr -d ' ')
               SECURITY=$(echo "$CHANGELOG_CONTENT" | grep -i "security\|vulnerability\|cve\|exploit" | wc -l | tr -d ' ')
               
               # Count total changes
@@ -345,11 +354,11 @@ jobs:
               # Create formatted changelog with emojis
               FORMATTED_CHANGELOG=""
               if [ "$FEATURES" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ✨ New Features ($FEATURES)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep "feat:" | sed 's/^- /-  /')"$'\n\n'
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ✨ New Features ($FEATURES)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?feat:" | sed 's/^- /-  /')"$'\n\n'
               fi
               
               if [ "$FIXES" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🐛 Bug Fixes ($FIXES)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep "fix:" | sed 's/^- /-  /')"$'\n\n'
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🐛 Bug Fixes ($FIXES)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?fix:" | sed 's/^- /-  /')"$'\n\n'
               fi
               
               if [ "$BREAKING" -gt 0 ]; then
@@ -357,15 +366,15 @@ jobs:
               fi
               
               if [ "$PERF" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ⚡ Performance Improvements ($PERF)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep "perf:" | sed 's/^- /-  /')"$'\n\n'
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ⚡ Performance Improvements ($PERF)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?perf:" | sed 's/^- /-  /')"$'\n\n'
               fi
               
               if [ "$REFACTOR" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔧 Code Refactoring ($REFACTOR)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep "refactor:" | sed 's/^- /-  /')"$'\n\n'
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔧 Code Refactoring ($REFACTOR)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?refactor:" | sed 's/^- /-  /')"$'\n\n'
               fi
               
               if [ "$DOCS" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 📚 Documentation ($DOCS)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep "docs:" | sed 's/^- /-  /')"$'\n\n'
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 📚 Documentation ($DOCS)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?docs:" | sed 's/^- /-  /')"$'\n\n'
               fi
               
               if [ "$SECURITY" -gt 0 ]; then
