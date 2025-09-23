@@ -310,7 +310,9 @@ jobs:
       - name: Extract changelog for release
         id: changelog
         shell: bash
+        continue-on-error: false
         run: |
+          set +e  # Disable exit on error for this script
           VERSION="${{ needs.prepare-release.outputs.version }}"
 
           if [ -f "CHANGELOG.md" ]; then
@@ -382,7 +384,7 @@ jobs:
               fi
               
               # Add other changes if any
-              OTHER_CHANGES=$(echo "$CHANGELOG_CONTENT" | grep -v -E "feat:|fix:|BREAKING CHANGE|!|perf:|refactor:|docs:|chore:|security|vulnerability|cve|exploit" | grep "^-" || echo "")
+              OTHER_CHANGES=$(echo "$CHANGELOG_CONTENT" | grep -v -E "feat:|fix:|BREAKING CHANGE|!|perf:|refactor:|docs:|chore:|security|vulnerability|cve|exploit" | grep "^-" || true)
               if [ -n "$OTHER_CHANGES" ]; then
                 FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔄 Other Changes"$'\n'"$OTHER_CHANGES"$'\n\n'
               fi
