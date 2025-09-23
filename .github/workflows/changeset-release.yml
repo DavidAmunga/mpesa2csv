@@ -14,6 +14,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      should_create_branch: ${{ steps.check_release.outputs.is_release }}
+      version: ${{ steps.get_version.outputs.version }}
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -42,8 +45,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check if this is a release merge
+        id: check_release
+        run: |
+          # Check if this push was from merging a changeset release PR
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+          echo "Commit message: $COMMIT_MSG"
+
+          if [[ "$COMMIT_MSG" == *"chore: release version packages"* ]] || [[ "$COMMIT_MSG" == *"Version Packages"* ]]; then
+            echo "is_release=true" >> $GITHUB_OUTPUT
+            echo "✅ This appears to be a release merge"
+          else
+            echo "is_release=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ This is not a release merge"
+          fi
+
       - name: Sync versions after changesets
-        if: steps.changesets.outputs.hasChangesets == 'true' || steps.changesets.outputs.published == 'true'
+        if: steps.changesets.outputs.hasChangesets == 'true' || steps.changesets.outputs.published == 'true' || steps.check_release.outputs.is_release == 'true'
         run: |
           echo "📦 Ensuring all version files are synced..."
           pnpm run sync-versions
@@ -60,20 +78,38 @@ jobs:
             echo "ℹ️ No version sync changes needed"
           fi
 
-      - name: Create Git Tag
-        if: steps.changesets.outputs.published == 'true'
+      - name: Get version for release
+        id: get_version
+        if: steps.changesets.outputs.published == 'true' || steps.check_release.outputs.is_release == 'true'
         run: |
-          # Get the version from package.json
           VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Creating release for version: $VERSION"
+
+      - name: Create Git Tag
+        if: steps.changesets.outputs.published == 'true' || steps.check_release.outputs.is_release == 'true'
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+
+          # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v$VERSION" -m "Release v$VERSION"
-          git push origin "v$VERSION"
 
-      - name: Trigger Build Workflow
-        if: steps.changesets.outputs.published == 'true'
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          event-type: version-published
-          client-payload: '{"packages": ${{ steps.changesets.outputs.publishedPackages }}}'
+          # Create and push tag
+          if ! git tag -l "v$VERSION" | grep -q "v$VERSION"; then
+            git tag -a "v$VERSION" -m "Release v$VERSION"
+            git push origin "v$VERSION"
+            echo "✅ Created and pushed tag: v$VERSION"
+          else
+            echo "ℹ️ Tag v$VERSION already exists"
+          fi
+
+  create-release-branch:
+    name: Create Release Branch
+    needs: [release]
+    if: ${{ needs.release.outputs.should_create_branch == 'true' }}
+    uses: ./.github/workflows/reusable-create-release-branch.yml
+    with:
+      version: v${{ needs.release.outputs.version }}
+      max_branches: 5
+    secrets: inherit
