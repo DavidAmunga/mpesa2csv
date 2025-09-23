@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.1.3
+
+### Patch Changes
+
+- 4416a56: Test build workflow trigger - minor update to test the automated release process
+
 ## 0.1.2
 
 ### Patch Changes
