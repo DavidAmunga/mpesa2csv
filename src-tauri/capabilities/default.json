@@ -3,5 +3,12 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": ["main"],
-  "permissions": ["core:default", "opener:default"]
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "core:webview:allow-webview-position",
+    "core:webview:allow-webview-size",
+    "fs:allow-read-file",
+    "fs:default"
+  ]
 }

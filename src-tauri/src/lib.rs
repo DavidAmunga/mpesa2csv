@@ -24,10 +24,8 @@ async fn save_csv_file(
 
     match file_path {
         Some(path) => {
-            // Convert FilePath to PathBuf for file operations
             let path_buf = path.as_path().unwrap();
             
-            // Write the CSV content to the selected file using std::fs
             match fs::write(&path_buf, &csv_content) {
                 Ok(_) => Ok(format!("File saved successfully to: {}", path_buf.display())),
                 Err(e) => Err(format!("Failed to write file: {}", e)),
@@ -42,6 +40,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![greet, save_csv_file])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

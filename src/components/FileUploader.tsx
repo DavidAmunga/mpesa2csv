@@ -1,4 +1,5 @@
 import React, { useState, useRef, ChangeEvent, useEffect } from "react";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { FileStatus } from "../types";
 
 interface FileUploaderProps {
@@ -13,90 +14,103 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const [dragActive, setDragActive] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Prevent browser's default drag and drop behavior
+  // Set up Tauri webview drag-drop event listener
   useEffect(() => {
-    const preventDefaults = (e: Event) => {
-      e.preventDefault();
-      e.stopPropagation();
+    let unlisten: (() => void) | undefined;
+
+    const setupDragDropListener = async () => {
+      try {
+        const webview = getCurrentWebview();
+
+        unlisten = await webview.onDragDropEvent((event) => {
+          if (event.payload.type === "over") {
+            setDragActive(true);
+          } else if (event.payload.type === "drop") {
+            setDragActive(false);
+            handleTauriDrop(event.payload.paths);
+          } else {
+            setDragActive(false);
+          }
+        });
+      } catch (error) {
+        setupBrowserDragDrop();
+      }
     };
 
-    const events = ["dragenter", "dragover", "dragleave", "drop"];
+    const setupBrowserDragDrop = () => {
+      const preventDefaults = (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
 
-    events.forEach((eventName) => {
-      document.addEventListener(eventName, preventDefaults, false);
-    });
+      const events = ["dragenter", "dragover", "dragleave", "drop"];
+
+      events.forEach((eventName) => {
+        document.addEventListener(eventName, preventDefaults, false);
+      });
+
+      return () => {
+        events.forEach((eventName) => {
+          document.removeEventListener(eventName, preventDefaults, false);
+        });
+      };
+    };
+
+    setupDragDropListener();
 
     return () => {
-      events.forEach((eventName) => {
-        document.removeEventListener(eventName, preventDefaults, false);
-      });
+      if (unlisten) {
+        unlisten();
+      }
     };
   }, []);
 
-  const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
-    console.log("Drag event:", e.type);
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      // Use a more reliable method to check if we're truly leaving the drop zone
-      const relatedTarget = e.relatedTarget as Element;
-      if (!e.currentTarget.contains(relatedTarget)) {
-        setDragActive(false);
-      }
-    }
-  };
-
   const isPdfFile = (file: File): boolean => {
-    // Check MIME type first
     if (file.type === "application/pdf") {
       return true;
     }
 
-    // Fallback to file extension if MIME type is not set correctly
     const fileName = file.name.toLowerCase();
     return fileName.endsWith(".pdf");
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    console.log("Drop event triggered", e);
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+  const isPdfFilePath = (filePath: string): boolean => {
+    return filePath.toLowerCase().endsWith(".pdf");
+  };
 
+  const handleTauriDrop = async (filePaths: string[]) => {
     try {
-      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-        const files: File[] = [];
-        const allFiles = Array.from(e.dataTransfer.files);
+      const pdfPaths = filePaths.filter(isPdfFilePath);
 
-        console.log(`Dropped ${allFiles.length} files`);
+      if (pdfPaths.length === 0) {
+        alert("Please drop only PDF files.");
+        return;
+      }
 
-        for (const file of allFiles) {
-          console.log(
-            `File: ${file.name}, Type: ${file.type}, Size: ${file.size}`
-          );
-          if (isPdfFile(file)) {
-            files.push(file);
-          }
+      const files: File[] = [];
+
+      for (const filePath of pdfPaths) {
+        try {
+          const { readFile } = await import("@tauri-apps/plugin-fs");
+          const fileContent = await readFile(filePath);
+
+          const fileName = filePath.split(/[\\/]/).pop() || "unknown.pdf";
+
+          const file = new File([fileContent], fileName, {
+            type: "application/pdf",
+          });
+          files.push(file);
+        } catch (error) {
+          // Silently skip files that can't be read
         }
+      }
 
-        console.log(`Valid PDF files: ${files.length}`);
-
-        if (files.length > 0) {
-          onFilesSelected(files);
-        } else {
-          alert("Please drop only PDF files.");
-        }
-
-        // Clear the dataTransfer
-        e.dataTransfer.clearData();
+      if (files.length > 0) {
+        onFilesSelected(files);
       } else {
-        console.log("No files in drop event");
+        alert("Failed to read the dropped PDF files. Please try again.");
       }
     } catch (error) {
-      console.error("Error handling drop:", error);
       alert("Error processing dropped files. Please try again.");
     }
   };
@@ -106,18 +120,11 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       const files: File[] = [];
       const allFiles = Array.from(e.target.files);
 
-      console.log(`Selected ${allFiles.length} files`);
-
       for (const file of allFiles) {
-        console.log(
-          `File: ${file.name}, Type: ${file.type}, Size: ${file.size}`
-        );
         if (isPdfFile(file)) {
           files.push(file);
         }
       }
-
-      console.log(`Valid PDF files: ${files.length}`);
 
       if (files.length > 0) {
         onFilesSelected(files);
@@ -133,20 +140,16 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
   return (
     <div
-      className={`card text-center transition-all duration-300 rounded-lg p-8 min-h-[300px] flex items-center justify-center ${
+      className={`card text-center transition-all duration-300 rounded-lg p-6 min-h-[250px] flex items-center justify-center ${
         dragActive
           ? "border-4 border-green-500 bg-green-50 shadow-lg scale-105 transform"
           : "border-2 hover:bg-green-500/5 border-dashed hover:border-green-500 cursor-pointer border-gray-300 bg-white shadow-sm hover:shadow-md"
       }`}
-      onDragEnter={handleDrag}
-      onDragLeave={handleDrag}
-      onDragOver={handleDrag}
-      onDrop={handleDrop}
       role="button"
       tabIndex={0}
       aria-label="Drop PDF files here or click to select files"
     >
-      <div className="flex flex-col items-center justify-center space-y-4">
+      <div className="flex flex-col items-center justify-center space-y-3">
         <span
           className={`text-4xl font-bold transition-transform duration-300 ${
             dragActive ? "scale-125" : ""
@@ -204,7 +207,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           </div>
         )}
 
-        <div className="text-xs text-gray-500 mt-6">
+        <div className="text-xs text-gray-500 mt-4">
           Your M-PESA statements will be processed locally. No data is sent to
           any server.
         </div>
