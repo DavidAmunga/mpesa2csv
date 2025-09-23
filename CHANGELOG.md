@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.1.6
+
+### Patch Changes
+
+- 3852f85: fix:test release process
+
 ## 0.1.5
 
 ### Patch Changes
