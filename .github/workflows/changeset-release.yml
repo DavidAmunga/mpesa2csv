@@ -1,0 +1,51 @@
+name: "Changeset Release"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Create Release Pull Request or Publish to GitHub
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          # This expects you to have a script called release which does a build for your packages and calls changeset publish
+          publish: pnpm run release
+          title: "chore: release version packages"
+          commit: "chore: release version packages"
+          createGithubReleases: false # We'll handle this in the build workflow
+          branch: "release/changeset-updates"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger Build Workflow
+        if: steps.changesets.outputs.published == 'true'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: version-published
+          client-payload: '{"packages": ${{ steps.changesets.outputs.publishedPackages }}}'

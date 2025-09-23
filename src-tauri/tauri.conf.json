@@ -14,7 +14,10 @@
       {
         "title": "mpesa2csv - Convert M-PESA Statements to CSV",
         "width": 600,
-        "height": 450
+        "height": 450,
+        "minWidth": 500,
+        "minHeight": 400,
+        "resizable": true
       }
     ],
     "security": {
@@ -30,6 +33,41 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "David Amunga",
+    "category": "Utility",
+    "shortDescription": "Convert M-PESA statements to CSV",
+    "longDescription": "A desktop application that converts M-PESA statement PDFs to CSV format. Process your statements locally with complete privacy.",
+    "copyright": "Copyright © 2025 David Amunga. All rights reserved.",
+    "licenseFile": "../LICENSE",
+    "externalBin": [],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.13",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "providerShortName": null,
+      "entitlements": null
+    },
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/DavidAmunga/mpesa2csv/releases/latest/download/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhEOTM5OERDNTU1QjUwNDUKUldSWTRKaFRuVkVaRzVqWVVGQlJrSkNSa0pEUWpCRFFrSkNSa0pCUWtKQ1FrSkJRa0pCUWc9PQ=="
+    }
   }
 }

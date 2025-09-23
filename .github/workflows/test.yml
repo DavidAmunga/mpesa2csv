@@ -1,0 +1,49 @@
+name: "Test"
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+jobs:
+  test-tauri:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Lint frontend
+        run: |
+          # Add linting commands when you have them set up
+          echo "Linting step - add your lint commands here"
+
+      - name: Test frontend
+        run: |
+          # Add test commands when you have them set up
+          echo "Testing step - add your test commands here"
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Check Rust code
+        run: |
+          cd src-tauri
+          cargo check
