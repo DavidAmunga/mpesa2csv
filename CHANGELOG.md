@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.1.8
+
+### Patch Changes
+
+- d841b8f: fix: release process
+
 ## 0.1.7
 
 ### Patch Changes
