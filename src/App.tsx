@@ -201,7 +201,7 @@ function App() {
       const BOM = "\uFEFF";
       const csvWithBOM = BOM + csvContent;
 
-      const result = await invoke<string>("save_csv_file", {
+      await invoke<string>("save_csv_file", {
         csvContent: csvWithBOM,
         defaultFilename: csvFileName || "mpesa_statement.csv",
       });
