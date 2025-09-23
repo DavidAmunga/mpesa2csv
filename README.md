@@ -17,32 +17,40 @@ This application processes all data locally on your device. No data is sent to a
 
 ### Pre-built Binaries
 
-Download the latest release for your operating system from the [Releases](https://github.com/DavidAmunga/mpesa2csv/releases) page.
+Download the latest release for your operating system from the [Releases](https://github.com/DavidAmunga/releases) page:
+
+- **Windows**: Download the `.exe` installer
+- **macOS**: Download the `.dmg` file (separate versions for Intel and Apple Silicon)
+- **Linux**: Download the `.AppImage` (portable) or `.deb` package
+
+### Auto-Updates
+
+The application includes automatic update functionality. When a new version is available, you'll be prompted to update directly from within the app.
 
 ### Building from Source
 
 1. Clone the repository
 
-   ```
+   ```bash
    git clone https://github.com/DavidAmunga/mpesa2csv.git
    cd mpesa2csv
    ```
 
 2. Install dependencies
 
-   ```
-   npm install
+   ```bash
+   pnpm install
    ```
 
 3. Run in development mode
 
-   ```
-   npm run tauri dev
+   ```bash
+   pnpm run tauri dev
    ```
 
 4. Build for production
-   ```
-   npm run tauri build
+   ```bash
+   pnpm run tauri build
    ```
 
 ## Usage
@@ -57,8 +65,9 @@ Download the latest release for your operating system from the [Releases](https:
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v16 or newer)
-- [Rust](https://www.rust-lang.org/tools/install) (v1.64 or newer)
+- [Node.js](https://nodejs.org/) (v18 or newer)
+- [Rust](https://www.rust-lang.org/tools/install) (v1.70 or newer)
+- [pnpm](https://pnpm.io/) (v8 or newer)
 - [Tauri CLI](https://tauri.app/v1/api/cli/)
 
 ### Technology Stack
@@ -69,6 +78,16 @@ Download the latest release for your operating system from the [Releases](https:
 - [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
 - [PDF.js](https://mozilla.github.io/pdf.js/) - PDF parsing library
 - [PapaParse](https://www.papaparse.com/) - CSV generation library
+
+### Release Process
+
+This project uses automated CI/CD for releases. See [RELEASE_GUIDE.md](./RELEASE_GUIDE.md) for detailed information about:
+
+- Setting up signing keys
+- Creating releases
+- Managing versions
+- Platform-specific builds
+- Auto-update configuration
 
 ## License
 
