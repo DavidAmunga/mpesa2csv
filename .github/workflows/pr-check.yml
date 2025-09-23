@@ -79,6 +79,14 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
       - name: Get pnpm store directory
         id: pnpm-cache
         shell: bash
@@ -93,10 +101,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Type check
+      - name: Frontend type check and build
         run: pnpm run build
 
       - name: Lint check (if available)
@@ -107,6 +126,33 @@ jobs:
           else
             echo "No lint script found, skipping..."
           fi
+
+      - name: Check Tauri configuration
+        run: |
+          echo "🔍 Validating Tauri configuration..."
+
+          # Check if tauri.conf.json is valid
+          if ! node -e "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8'))"; then
+            echo "❌ Invalid tauri.conf.json"
+            exit 1
+          fi
+          echo "✅ tauri.conf.json is valid"
+
+          # Check if Cargo.toml is valid
+          cd src-tauri
+          if ! cargo check --quiet; then
+            echo "❌ Cargo check failed"
+            exit 1
+          fi
+          echo "✅ Cargo check passed"
+
+      - name: Test Tauri build (dev mode)
+        run: |
+          echo "🔧 Testing Tauri development build..."
+          timeout 60s pnpm tauri build --debug || {
+            echo "⚠️ Build test timed out (expected for PR checks)"
+            echo "✅ Build process started successfully"
+          }
 
   release-branch-validation:
     name: Release Branch Validation

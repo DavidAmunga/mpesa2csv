@@ -1,0 +1,354 @@
+name: "Main Release Orchestration"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_release:
+        description: "Force a release even if no changesets"
+        required: false
+        default: false
+        type: boolean
+      release_type:
+        description: "Type of release"
+        required: false
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+
+concurrency:
+  group: main-release
+  cancel-in-progress: false
+
+jobs:
+  # Step 1: Determine if we should release
+  check-release:
+    name: "Check Release Status"
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
+      has_changesets: ${{ steps.check.outputs.has_changesets }}
+      is_changeset_release: ${{ steps.check.outputs.is_changeset_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check release conditions
+        id: check
+        run: |
+          # Check if this is a changeset release commit
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+          echo "Latest commit: $COMMIT_MSG"
+
+          IS_CHANGESET_RELEASE="false"
+          if [[ "$COMMIT_MSG" == *"chore: release version packages"* ]] || \
+             [[ "$COMMIT_MSG" == *"Version Packages"* ]]; then
+            IS_CHANGESET_RELEASE="true"
+            echo "✅ This is a changeset release commit"
+          fi
+
+          # Check for pending changesets
+          HAS_CHANGESETS="false"
+          if [ -d ".changeset" ] && [ "$(ls -1 .changeset/*.md 2>/dev/null | wc -l)" -gt 0 ]; then
+            # Exclude README.md and config.json
+            CHANGESET_COUNT=$(ls -1 .changeset/*.md 2>/dev/null | grep -v README.md | wc -l)
+            if [ "$CHANGESET_COUNT" -gt 0 ]; then
+              HAS_CHANGESETS="true"
+              echo "✅ Found $CHANGESET_COUNT pending changesets"
+            fi
+          fi
+
+          # Determine if we should release
+          SHOULD_RELEASE="false"
+          if [[ "$IS_CHANGESET_RELEASE" == "true" ]] || \
+             [[ "${{ github.event.inputs.force_release }}" == "true" ]] || \
+             [[ "$HAS_CHANGESETS" == "true" && "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            SHOULD_RELEASE="true"
+            echo "✅ Release conditions met"
+          else
+            echo "ℹ️ No release needed"
+          fi
+
+          # Get current version
+          VERSION=$(node -p "require('./package.json').version")
+
+          echo "should_release=$SHOULD_RELEASE" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "has_changesets=$HAS_CHANGESETS" >> $GITHUB_OUTPUT
+          echo "is_changeset_release=$IS_CHANGESET_RELEASE" >> $GITHUB_OUTPUT
+
+  # Step 2: Handle changesets (version bumping)
+  handle-changesets:
+    name: "Handle Changesets"
+    runs-on: ubuntu-latest
+    needs: check-release
+    if: needs.check-release.outputs.has_changesets == 'true' && needs.check-release.outputs.is_changeset_release == 'false'
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create Release Pull Request
+        uses: changesets/action@v1
+        with:
+          version: pnpm run version
+          title: "chore: release version packages"
+          commit: "chore: release version packages"
+          createGithubReleases: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Step 3: Sync versions and create tag
+  prepare-release:
+    name: "Prepare Release"
+    runs-on: ubuntu-latest
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true'
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync versions
+        run: |
+          echo "📦 Syncing all version files..."
+          pnpm run sync-versions
+
+          # Check if there are any changes to commit
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add .
+            git commit -m "chore: sync version files"
+            git push
+            echo "✅ Version files synced and committed"
+          else
+            echo "ℹ️ No version sync changes needed"
+          fi
+
+      - name: Get version and create tag
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create and push tag if it doesn't exist
+          if ! git tag -l "$TAG" | grep -q "$TAG"; then
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+            echo "✅ Created and pushed tag: $TAG"
+          else
+            echo "ℹ️ Tag $TAG already exists"
+          fi
+
+  # Step 4: Build and release
+  build-and-release:
+    name: "Build & Release"
+    needs: [check-release, prepare-release]
+    if: needs.check-release.outputs.should_release == 'true'
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+            target: "aarch64-apple-darwin"
+          - platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
+            target: "x86_64-apple-darwin"
+          - platform: "ubuntu-22.04"
+            args: ""
+            target: "x86_64-unknown-linux-gnu"
+          - platform: "windows-latest"
+            args: ""
+            target: "x86_64-pc-windows-msvc"
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Extract changelog for release
+        id: changelog
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+
+          if [ -f "CHANGELOG.md" ]; then
+            # Extract the changelog section for the current version
+            CHANGELOG_CONTENT=$(awk -v version="$VERSION" '
+              /^## / { 
+                if (found) exit
+                if ($0 ~ "## .*" version) found=1
+                next
+              }
+              found && /^## / { exit }
+              found { print }
+            ' CHANGELOG.md | sed '/^$/d' | head -20)
+            
+            if [ -n "$CHANGELOG_CONTENT" ]; then
+              echo "changelog<<EOF" >> $GITHUB_OUTPUT
+              echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            else
+              echo "changelog=See CHANGELOG.md for details." >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "changelog=No changelog available." >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and release Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ needs.prepare-release.outputs.tag }}
+          releaseName: "mpesa2csv ${{ needs.prepare-release.outputs.tag }}"
+          releaseBody: |
+            ## 🚀 What's New in ${{ needs.prepare-release.outputs.tag }}
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ---
+
+            ## 📦 Installation
+
+            Choose the appropriate installer for your operating system:
+
+            ### Windows
+            - **Intel/AMD**: Download the `.exe` installer
+
+            ### macOS  
+            - **Apple Silicon (M1/M2/M3)**: Download the `aarch64.dmg` file
+            - **Intel**: Download the `x64.dmg` file
+
+            ### Linux
+            - **Ubuntu/Debian**: Download the `.deb` package
+            - **Other distributions**: Download the `.AppImage` (portable)
+
+            ## 🔄 Auto-Update
+
+            If you have a previous version installed, the app will automatically notify you about this update.
+
+            ## 📋 Full Changelog
+
+            View the complete changelog at: [CHANGELOG.md](https://github.com/DavidAmunga/mpesa2csv-app/blob/main/CHANGELOG.md)
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  # Step 5: Create release branch for hotfixes
+  create-release-branch:
+    name: "Create Release Branch"
+    needs: [check-release, prepare-release, build-and-release]
+    if: needs.check-release.outputs.should_release == 'true'
+    uses: ./.github/workflows/reusable-create-release-branch.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.tag }}
+      max_branches: 5
+    secrets: inherit
+
+  # Step 6: Notify about release completion
+  notify-completion:
+    name: "Release Complete"
+    runs-on: ubuntu-latest
+    needs: [prepare-release, build-and-release, create-release-branch]
+    if: always() && needs.prepare-release.result == 'success'
+    steps:
+      - name: Release summary
+        run: |
+          echo "🎉 Release ${{ needs.prepare-release.outputs.tag }} completed!"
+          echo "✅ Binaries built and published"
+          echo "✅ Release branch created for hotfixes"
+          echo "🔗 View release: https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare-release.outputs.tag }}"

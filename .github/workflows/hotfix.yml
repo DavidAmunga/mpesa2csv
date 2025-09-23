@@ -1,0 +1,242 @@
+name: "Hotfix Release"
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_version:
+        description: "Base version to hotfix (e.g., v1.2.3)"
+        required: true
+        type: string
+      hotfix_description:
+        description: "Brief description of the hotfix"
+        required: true
+        type: string
+      severity:
+        description: "Severity level"
+        required: true
+        default: "high"
+        type: choice
+        options:
+          - critical
+          - high
+          - medium
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  validate-input:
+    name: "Validate Hotfix Request"
+    runs-on: ubuntu-latest
+    outputs:
+      base_branch: ${{ steps.validate.outputs.base_branch }}
+      new_version: ${{ steps.validate.outputs.new_version }}
+      hotfix_branch: ${{ steps.validate.outputs.hotfix_branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate inputs and determine versions
+        id: validate
+        run: |
+          BASE_VERSION="${{ github.event.inputs.base_version }}"
+
+          # Remove 'v' prefix if present
+          BASE_VERSION=${BASE_VERSION#v}
+
+          # Validate version format
+          if [[ ! "$BASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version format: $BASE_VERSION (expected X.Y.Z)"
+            exit 1
+          fi
+
+          # Check if release branch exists
+          BASE_BRANCH="release/$BASE_VERSION"
+          if ! git ls-remote --heads origin "$BASE_BRANCH" | grep -q "$BASE_BRANCH"; then
+            echo "❌ Release branch $BASE_BRANCH does not exist"
+            echo "Available release branches:"
+            git ls-remote --heads origin 'refs/heads/release/*' | sed 's/.*refs\/heads\//  - /'
+            exit 1
+          fi
+
+          # Calculate new patch version
+          IFS='.' read -r major minor patch <<< "$BASE_VERSION"
+          NEW_PATCH=$((patch + 1))
+          NEW_VERSION="$major.$minor.$NEW_PATCH"
+          HOTFIX_BRANCH="hotfix/$NEW_VERSION"
+
+          echo "✅ Hotfix validation successful"
+          echo "  Base branch: $BASE_BRANCH"
+          echo "  New version: $NEW_VERSION"
+          echo "  Hotfix branch: $HOTFIX_BRANCH"
+
+          echo "base_branch=$BASE_BRANCH" >> $GITHUB_OUTPUT
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "hotfix_branch=$HOTFIX_BRANCH" >> $GITHUB_OUTPUT
+
+  create-hotfix-branch:
+    name: "Create Hotfix Branch"
+    runs-on: ubuntu-latest
+    needs: validate-input
+    outputs:
+      pr_number: ${{ steps.create_pr.outputs.pr_number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create hotfix branch
+        run: |
+          BASE_BRANCH="${{ needs.validate-input.outputs.base_branch }}"
+          HOTFIX_BRANCH="${{ needs.validate-input.outputs.hotfix_branch }}"
+
+          # Checkout the base release branch
+          git checkout -b "$HOTFIX_BRANCH" "origin/$BASE_BRANCH"
+
+          echo "✅ Created hotfix branch: $HOTFIX_BRANCH from $BASE_BRANCH"
+
+          # Push the branch
+          git push origin "$HOTFIX_BRANCH"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Update version files
+        run: |
+          NEW_VERSION="${{ needs.validate-input.outputs.new_version }}"
+
+          echo "📦 Updating version to $NEW_VERSION..."
+
+          # Update package.json
+          pnpm version "$NEW_VERSION" --no-git-tag-version
+
+          # Sync all version files
+          pnpm run sync-versions
+
+          # Commit version changes
+          git add .
+          git commit -m "chore: bump version to v$NEW_VERSION for hotfix"
+          git push origin "${{ needs.validate-input.outputs.hotfix_branch }}"
+
+      - name: Create Pull Request
+        id: create_pr
+        run: |
+          HOTFIX_BRANCH="${{ needs.validate-input.outputs.hotfix_branch }}"
+          NEW_VERSION="${{ needs.validate-input.outputs.new_version }}"
+          BASE_BRANCH="${{ needs.validate-input.outputs.base_branch }}"
+          SEVERITY="${{ github.event.inputs.severity }}"
+          DESCRIPTION="${{ github.event.inputs.hotfix_description }}"
+
+          # Determine severity emoji
+          case "$SEVERITY" in
+            "critical") SEVERITY_EMOJI="🚨" ;;
+            "high") SEVERITY_EMOJI="⚠️" ;;
+            "medium") SEVERITY_EMOJI="🔧" ;;
+            *) SEVERITY_EMOJI="🔧" ;;
+          esac
+
+          # Create PR body
+          cat > pr_body.md << EOF
+          ## $SEVERITY_EMOJI Hotfix v$NEW_VERSION
+
+          **Severity**: \`$SEVERITY\`
+          **Base Version**: \`${{ github.event.inputs.base_version }}\`
+          **Target Branch**: \`$BASE_BRANCH\`
+
+          ### Description
+          $DESCRIPTION
+
+          ### Checklist
+          - [ ] Fix has been tested locally
+          - [ ] Documentation updated (if needed)
+          - [ ] Breaking changes documented (if any)
+          - [ ] Ready for immediate release
+
+          ### Release Process
+          1. Once this PR is merged into \`$BASE_BRANCH\`, it will trigger an automatic release
+          2. The hotfix will be tagged as \`v$NEW_VERSION\`
+          3. Release artifacts will be built and published
+          4. Changes will be synced back to \`main\` branch
+
+          ---
+
+          **⚠️ This is a hotfix PR - please review and merge promptly if approved.**
+          EOF
+
+          # Create the PR
+          PR_NUMBER=$(gh pr create \
+            --title "hotfix: v$NEW_VERSION - $DESCRIPTION" \
+            --body-file pr_body.md \
+            --base "$BASE_BRANCH" \
+            --head "$HOTFIX_BRANCH" \
+            --label "hotfix,$SEVERITY,urgent" \
+            --assignee "@me" \
+            --json number --jq '.number')
+
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "✅ Created hotfix PR #$PR_NUMBER"
+
+          # Clean up
+          rm pr_body.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify-team:
+    name: "Notify Team"
+    runs-on: ubuntu-latest
+    needs: [validate-input, create-hotfix-branch]
+    if: always() && needs.create-hotfix-branch.result == 'success'
+    steps:
+      - name: Hotfix summary
+        run: |
+          echo "🚨 HOTFIX CREATED 🚨"
+          echo ""
+          echo "📋 Details:"
+          echo "  • Version: v${{ needs.validate-input.outputs.new_version }}"
+          echo "  • Severity: ${{ github.event.inputs.severity }}"
+          echo "  • Description: ${{ github.event.inputs.hotfix_description }}"
+          echo "  • PR: #${{ needs.create-hotfix-branch.outputs.pr_number }}"
+          echo ""
+          echo "🔗 Next steps:"
+          echo "  1. Review and merge PR #${{ needs.create-hotfix-branch.outputs.pr_number }}"
+          echo "  2. Automatic release will be triggered"
+          echo "  3. Changes will be synced back to main"
+          echo ""
+          echo "⚠️ This hotfix requires immediate attention!"
+
+      # Add additional notification steps here (Slack, email, etc.)
+      # - name: Notify Slack
+      #   if: env.SLACK_WEBHOOK_URL != ''
+      #   uses: 8398a7/action-slack@v3
+      #   with:
+      #     status: custom
+      #     custom_payload: |
+      #       {
+      #         text: "🚨 Hotfix v${{ needs.validate-input.outputs.new_version }} created",
+      #         attachments: [{
+      #           color: "${{ github.event.inputs.severity == 'critical' && 'danger' || 'warning' }}",
+      #           fields: [
+      #             { title: "Severity", value: "${{ github.event.inputs.severity }}", short: true },
+      #             { title: "PR", value: "<${{ github.server_url }}/${{ github.repository }}/pull/${{ needs.create-hotfix-branch.outputs.pr_number }}|#${{ needs.create-hotfix-branch.outputs.pr_number }}>", short: true },
+      #             { title: "Description", value: "${{ github.event.inputs.hotfix_description }}", short: false }
+      #           ]
+      #         }]
+      #       }
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
