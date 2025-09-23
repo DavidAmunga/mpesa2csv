@@ -38,7 +38,6 @@ jobs:
           title: "chore: release version packages"
           commit: "chore: release version packages"
           createGithubReleases: false # We'll handle this in the build workflow
-          branch: "release/changeset-updates"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
