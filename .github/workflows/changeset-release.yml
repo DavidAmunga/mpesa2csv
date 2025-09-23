@@ -41,6 +41,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Create Git Tag
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          # Get the version from package.json
+          VERSION=$(node -p "require('./package.json').version")
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
+
       - name: Trigger Build Workflow
         if: steps.changesets.outputs.published == 'true'
         uses: peter-evans/repository-dispatch@v3

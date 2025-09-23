@@ -10,11 +10,40 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
     steps:
       - uses: actions/checkout@v4
       - name: Get version
         id: version
         run: echo "version=v$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Extract changelog for current version
+        id: changelog
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          # Extract the changelog section for the current version
+          if [ -f "CHANGELOG.md" ]; then
+            # Use awk to extract content between version headers
+            CHANGELOG_CONTENT=$(awk -v version="$VERSION" '
+              /^## / { 
+                if (found) exit
+                if ($0 ~ "## " version) found=1
+                next
+              }
+              found && /^## / { exit }
+              found { print }
+            ' CHANGELOG.md | sed '/^$/d' | head -20)
+            
+            if [ -n "$CHANGELOG_CONTENT" ]; then
+              echo "changelog<<EOF" >> $GITHUB_OUTPUT
+              echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            else
+              echo "changelog=No changelog available for this version." >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "changelog=No changelog file found." >> $GITHUB_OUTPUT
+          fi
 
   publish-tauri:
     needs: get-version
@@ -73,7 +102,9 @@ jobs:
           releaseBody: |
             ## What's Changed
 
-            See the [CHANGELOG.md](https://github.com/DavidAmunga/mpesa2csv-app/blob/main/CHANGELOG.md) for detailed changes.
+            ${{ needs.get-version.outputs.changelog }}
+
+            ---
 
             ### Installation
 
@@ -87,6 +118,10 @@ jobs:
             ### Auto-Update
 
             If you have a previous version installed, the app will automatically notify you about this update.
+
+            ### Full Changelog
+
+            See the [CHANGELOG.md](https://github.com/DavidAmunga/mpesa2csv-app/blob/main/CHANGELOG.md) for complete version history.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

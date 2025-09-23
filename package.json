@@ -10,7 +10,7 @@
     "tauri": "tauri",
     "changeset": "changeset",
     "version": "changeset version && pnpm run sync-versions",
-    "release": "pnpm run version && git add . && git commit -m 'chore: version packages' || true",
+    "release": "changeset publish",
     "sync-versions": "node scripts/sync-versions.js"
   },
   "dependencies": {

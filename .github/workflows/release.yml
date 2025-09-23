@@ -59,9 +59,25 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }} # the action automatically replaces \_\_VERSION\_\_ with the app version.
+          tagName: ${{ github.ref_name }}
           releaseName: "mpesa2csv ${{ github.ref_name }}"
-          releaseBody: "See the assets to download this version and install."
-          releaseDraft: true
+          releaseBody: |
+            ## What's Changed
+
+            This is a manual release. See the [CHANGELOG.md](https://github.com/DavidAmunga/mpesa2csv-app/blob/main/CHANGELOG.md) for detailed changes.
+
+            ### Installation
+
+            Download the appropriate installer for your operating system from the assets below:
+
+            - **Windows**: `.exe` installer
+            - **macOS (Intel)**: `.dmg` file  
+            - **macOS (Apple Silicon)**: `.dmg` file
+            - **Linux**: `.AppImage` (portable) or `.deb` package
+
+            ### Auto-Update
+
+            If you have a previous version installed, the app will automatically notify you about this update.
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
