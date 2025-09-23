@@ -330,17 +330,17 @@ jobs:
             
             if [ -n "$CHANGELOG_CONTENT" ]; then
               # Analyze change types
-              FEATURES=$(echo "$CHANGELOG_CONTENT" | grep -c "feat:" || echo "0")
-              FIXES=$(echo "$CHANGELOG_CONTENT" | grep -c "fix:" || echo "0")
-              BREAKING=$(echo "$CHANGELOG_CONTENT" | grep -c "BREAKING CHANGE\|!" || echo "0")
-              DOCS=$(echo "$CHANGELOG_CONTENT" | grep -c "docs:" || echo "0")
-              PERF=$(echo "$CHANGELOG_CONTENT" | grep -c "perf:" || echo "0")
-              REFACTOR=$(echo "$CHANGELOG_CONTENT" | grep -c "refactor:" || echo "0")
-              CHORE=$(echo "$CHANGELOG_CONTENT" | grep -c "chore:" || echo "0")
-              SECURITY=$(echo "$CHANGELOG_CONTENT" | grep -c -i "security\|vulnerability\|cve\|exploit" || echo "0")
+              FEATURES=$(echo "$CHANGELOG_CONTENT" | grep "feat:" | wc -l)
+              FIXES=$(echo "$CHANGELOG_CONTENT" | grep "fix:" | wc -l)
+              BREAKING=$(echo "$CHANGELOG_CONTENT" | grep -E "BREAKING CHANGE|!" | wc -l)
+              DOCS=$(echo "$CHANGELOG_CONTENT" | grep "docs:" | wc -l)
+              PERF=$(echo "$CHANGELOG_CONTENT" | grep "perf:" | wc -l)
+              REFACTOR=$(echo "$CHANGELOG_CONTENT" | grep "refactor:" | wc -l)
+              CHORE=$(echo "$CHANGELOG_CONTENT" | grep "chore:" | wc -l)
+              SECURITY=$(echo "$CHANGELOG_CONTENT" | grep -i "security\|vulnerability\|cve\|exploit" | wc -l)
               
               # Count total changes
-              TOTAL_CHANGES=$(echo "$CHANGELOG_CONTENT" | grep -c "^-" || echo "0")
+              TOTAL_CHANGES=$(echo "$CHANGELOG_CONTENT" | grep "^-" | wc -l)
               
               # Create formatted changelog with emojis
               FORMATTED_CHANGELOG=""
