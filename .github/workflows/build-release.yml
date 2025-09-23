@@ -1,0 +1,94 @@
+name: "Build Release"
+
+on:
+  repository_dispatch:
+    types: [version-published]
+  workflow_dispatch:
+
+jobs:
+  get-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get version
+        id: version
+        run: echo "version=v$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+  publish-tauri:
+    needs: get-version
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
+          - platform: "ubuntu-22.04"
+            args: ""
+          - platform: "windows-latest"
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Build frontend
+        run: pnpm build
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ needs.get-version.outputs.version }}
+          releaseName: "mpesa2csv ${{ needs.get-version.outputs.version }}"
+          releaseBody: |
+            ## What's Changed
+
+            See the [CHANGELOG.md](https://github.com/DavidAmunga/mpesa2csv-app/blob/main/CHANGELOG.md) for detailed changes.
+
+            ### Installation
+
+            Download the appropriate installer for your operating system from the assets below:
+
+            - **Windows**: `.exe` installer
+            - **macOS (Intel)**: `.dmg` file  
+            - **macOS (Apple Silicon)**: `.dmg` file
+            - **Linux**: `.AppImage` (portable) or `.deb` package
+
+            ### Auto-Update
+
+            If you have a previous version installed, the app will automatically notify you about this update.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

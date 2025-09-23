@@ -1,0 +1,128 @@
+name: "Version Bump"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: "Version bump type"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      prerelease:
+        description: "Create pre-release"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Bump version in package.json
+        id: version_bump
+        run: |
+          # Get current version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Bump version based on input
+          if [ "${{ github.event.inputs.version_type }}" = "major" ]; then
+            NEW_VERSION=$(pnpm version major --no-git-tag-version | sed 's/v//')
+          elif [ "${{ github.event.inputs.version_type }}" = "minor" ]; then
+            NEW_VERSION=$(pnpm version minor --no-git-tag-version | sed 's/v//')
+          else
+            NEW_VERSION=$(pnpm version patch --no-git-tag-version | sed 's/v//')
+          fi
+
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update Tauri version
+        run: |
+          # Update version in Cargo.toml
+          sed -i 's/version = "[^"]*"/version = "${{ steps.version_bump.outputs.new_version }}"/' src-tauri/Cargo.toml
+
+          # Update version in tauri.conf.json
+          sed -i 's/"version": "[^"]*"/"version": "${{ steps.version_bump.outputs.new_version }}"/' src-tauri/tauri.conf.json
+
+      - name: Generate changelog
+        run: |
+          echo "# Changelog" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "## [${{ steps.version_bump.outputs.new_version }}] - $(date +%Y-%m-%d)" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "### Added" >> CHANGELOG.md
+          echo "- New features and improvements" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "### Changed" >> CHANGELOG.md
+          echo "- Updates and modifications" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "### Fixed" >> CHANGELOG.md
+          echo "- Bug fixes and patches" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+
+      - name: Commit changes
+        run: |
+          git add .
+          git commit -m "chore: bump version to v${{ steps.version_bump.outputs.new_version }}"
+          git push
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ steps.version_bump.outputs.new_version }}"
+          git push origin "v${{ steps.version_bump.outputs.new_version }}"
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "v${{ steps.version_bump.outputs.new_version }}"
+          release_name: "mpesa2csv v${{ steps.version_bump.outputs.new_version }}"
+          body: |
+            ## What's Changed
+
+            This release includes new features, improvements, and bug fixes.
+
+            ### Installation
+
+            Download the appropriate installer for your operating system from the assets below:
+
+            - **Windows**: `mpesa2csv_${{ steps.version_bump.outputs.new_version }}_x64-setup.exe`
+            - **macOS (Intel)**: `mpesa2csv_${{ steps.version_bump.outputs.new_version }}_x64.dmg`
+            - **macOS (Apple Silicon)**: `mpesa2csv_${{ steps.version_bump.outputs.new_version }}_aarch64.dmg`
+            - **Linux**: `mpesa2csv_${{ steps.version_bump.outputs.new_version }}_amd64.deb` or `mpesa2csv_${{ steps.version_bump.outputs.new_version }}_amd64.AppImage`
+
+            ### Auto-Update
+
+            If you have a previous version installed, the app will automatically notify you about this update.
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease }}
