@@ -5,12 +5,18 @@ interface PasswordPromptProps {
   onPasswordSubmit: (password: string) => void;
   status: FileStatus;
   error?: string;
+  currentFileName?: string;
+  currentFileIndex?: number;
+  totalFiles?: number;
 }
 
 const PasswordPrompt: React.FC<PasswordPromptProps> = ({
   onPasswordSubmit,
   status,
   error,
+  currentFileName,
+  currentFileIndex,
+  totalFiles,
 }) => {
   const [password, setPassword] = useState<string>("");
 
@@ -42,6 +48,18 @@ const PasswordPrompt: React.FC<PasswordPromptProps> = ({
         <h3 className="text-xl font-semibold text-green-700">
           Password Protected PDF
         </h3>
+
+        {totalFiles && totalFiles > 1 && (
+          <div className="text-sm text-gray-500 mb-2">
+            File {(currentFileIndex ?? 0) + 1} of {totalFiles}
+          </div>
+        )}
+
+        {currentFileName && (
+          <div className="text-sm font-medium text-gray-700 mb-3 px-4 py-2 bg-gray-50 rounded-md max-w-md truncate">
+            {currentFileName}
+          </div>
+        )}
 
         <p className="text-gray-600 max-w-md text-center">
           This PDF is password protected. Please enter the password to unlock

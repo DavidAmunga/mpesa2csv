@@ -12,6 +12,7 @@
   "dependencies": {
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "@tauri-apps/plugin-dialog": "^2.2.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "tailwind-merge": "^3.3.1",
@@ -22,7 +23,6 @@
     "clsx": "^2.1.1",
     "@types/papaparse": "^5.3.15",
     "@tailwindcss/vite": "^4.1.3"
-
   },
   "devDependencies": {
     "@types/react": "^19.1.8",

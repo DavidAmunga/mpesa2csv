@@ -30,7 +30,11 @@ function App() {
     setCurrentFileIndex(0);
 
     try {
-      await processFiles(selectedFiles);
+      const result = await processFiles(selectedFiles);
+      if (result?.error) {
+        setStatus(FileStatus.ERROR);
+        setError(result.error);
+      }
     } catch (error: any) {
       console.error("Error in handleFilesSelected:", error);
       setStatus(FileStatus.ERROR);
@@ -40,19 +44,24 @@ function App() {
     }
   };
 
-  const processFiles = async (filesToProcess: File[]) => {
-    console.log("processFiles called with", filesToProcess.length, "files");
-    const processedStatements: MPesaStatement[] = [];
+  const processFiles = async (
+    filesToProcess: File[],
+    startIndex: number = 0,
+    existingStatements: MPesaStatement[] = []
+  ) => {
+    console.log(
+      "processFiles called with",
+      filesToProcess.length,
+      "files, starting from index",
+      startIndex
+    );
+    const processedStatements: MPesaStatement[] = [...existingStatements];
 
-    for (let i = 0; i < filesToProcess.length; i++) {
+    for (let i = startIndex; i < filesToProcess.length; i++) {
       setCurrentFileIndex(i);
       const file = filesToProcess[i];
-      console.log(
-        `Processing file ${i + 1}/${filesToProcess.length}: ${file.name}`
-      );
 
       try {
-        console.log("Calling PdfService.loadPdf...");
         const result = (await Promise.race([
           PdfService.loadPdf(file),
           new Promise((_, reject) =>
@@ -63,17 +72,11 @@ function App() {
           ),
         ])) as { isProtected: boolean; pdf?: any };
 
-        console.log("PdfService.loadPdf result:", {
-          isProtected: result.isProtected,
-          hasPdf: !!result.pdf,
-        });
-
         if (result.isProtected) {
-          console.log("PDF is protected, showing password prompt");
+          // Store the current progress and wait for password
           setStatus(FileStatus.PROTECTED);
-          return; // Stop processing and wait for password
+          return { needsPassword: true, fileIndex: i, processedStatements };
         } else if (result.pdf) {
-          console.log("PDF loaded successfully, parsing statement...");
           setStatus(FileStatus.PROCESSING);
           const statement = (await Promise.race([
             PdfService.parseMpesaStatement(result.pdf),
@@ -85,10 +88,6 @@ function App() {
             ),
           ])) as MPesaStatement;
 
-          console.log(
-            "Statement parsed successfully, transactions:",
-            statement.transactions.length
-          );
           statement.fileName = file.name;
           processedStatements.push(statement);
         } else {
@@ -98,11 +97,16 @@ function App() {
         console.error("PDF processing error for file", file.name, ":", err);
         setStatus(FileStatus.ERROR);
         setError(err.message || "Failed to process the PDF file");
-        return;
+        return {
+          needsPassword: false,
+          fileIndex: i,
+          processedStatements,
+          error: err.message,
+        };
       }
     }
 
-    // Combine all transactions from all statements
+    // All files processed successfully
     if (processedStatements.length > 0) {
       const combinedStatement = combineStatements(processedStatements);
       setStatements([combinedStatement]);
@@ -117,15 +121,18 @@ function App() {
       setCsvFileName(fileName);
       setStatus(FileStatus.SUCCESS);
     }
+
+    return {
+      needsPassword: false,
+      fileIndex: filesToProcess.length,
+      processedStatements,
+    };
   };
 
   const combineStatements = (statements: MPesaStatement[]): MPesaStatement => {
     if (statements.length === 1) {
       return statements[0];
     }
-
-    // Use the first statement's customer info as base
-    const firstStatement = statements[0];
 
     // Combine all transactions
     const allTransactions = statements.flatMap((s) => s.transactions);
@@ -153,20 +160,25 @@ function App() {
       const currentFile = files[currentFileIndex];
       const pdf = await PdfService.unlockPdf(currentFile, password);
 
-      // Process the unlocked file and continue with remaining files
+      // Process the unlocked file
       const statement = await PdfService.parseMpesaStatement(pdf);
       statement.fileName = currentFile.name;
 
-      const newStatements = [...statements, statement];
-      setStatements(newStatements);
+      // Get existing processed statements and add the new one
+      const updatedStatements = [...statements, statement];
+      setStatements(updatedStatements);
 
-      // Continue processing remaining files
-      const remainingFiles = files.slice(currentFileIndex + 1);
-      if (remainingFiles.length > 0) {
-        await processFiles(remainingFiles);
+      // Continue processing remaining files from the next index
+      const nextIndex = currentFileIndex + 1;
+      if (nextIndex < files.length) {
+        const result = await processFiles(files, nextIndex, updatedStatements);
+        if (result?.error) {
+          setStatus(FileStatus.ERROR);
+          setError(result.error);
+        }
       } else {
-        // All files processed
-        const combinedStatement = combineStatements(newStatements);
+        // All files processed - finalize
+        const combinedStatement = combineStatements(updatedStatements);
         const downloadLink = CsvService.createDownloadLink(combinedStatement);
         const fileName = `Combined_M-PESA_Statements_${new Date()
           .toISOString()
@@ -265,6 +277,9 @@ function App() {
               onPasswordSubmit={handlePasswordSubmit}
               status={status}
               error={error}
+              currentFileName={files[currentFileIndex]?.name}
+              currentFileIndex={currentFileIndex}
+              totalFiles={files.length}
             />
           ) : status === FileStatus.PROCESSING ? (
             <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
