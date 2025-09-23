@@ -323,18 +323,126 @@ jobs:
               }
               found && /^## / { exit }
               found { print }
-            ' CHANGELOG.md | sed '/^$/d' | head -20)
+            ' CHANGELOG.md | sed '/^$/d' | head -30)
+            
+            # Get previous version for comparison link
+            PREVIOUS_VERSION=$(awk '/^## / && !/'"$VERSION"'/ { print $2; exit }' CHANGELOG.md)
             
             if [ -n "$CHANGELOG_CONTENT" ]; then
+              # Analyze change types
+              FEATURES=$(echo "$CHANGELOG_CONTENT" | grep -c "feat:" || echo "0")
+              FIXES=$(echo "$CHANGELOG_CONTENT" | grep -c "fix:" || echo "0")
+              BREAKING=$(echo "$CHANGELOG_CONTENT" | grep -c "BREAKING CHANGE\|!" || echo "0")
+              DOCS=$(echo "$CHANGELOG_CONTENT" | grep -c "docs:" || echo "0")
+              PERF=$(echo "$CHANGELOG_CONTENT" | grep -c "perf:" || echo "0")
+              REFACTOR=$(echo "$CHANGELOG_CONTENT" | grep -c "refactor:" || echo "0")
+              CHORE=$(echo "$CHANGELOG_CONTENT" | grep -c "chore:" || echo "0")
+              SECURITY=$(echo "$CHANGELOG_CONTENT" | grep -c -i "security\|vulnerability\|cve\|exploit" || echo "0")
+              
+              # Count total changes
+              TOTAL_CHANGES=$(echo "$CHANGELOG_CONTENT" | grep -c "^-" || echo "0")
+              
+              # Create formatted changelog with emojis
+              FORMATTED_CHANGELOG=""
+              if [ "$FEATURES" -gt 0 ]; then
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ✨ New Features ($FEATURES)
+$(echo "$CHANGELOG_CONTENT" | grep "feat:" | sed 's/^- /-  /')
+
+"
+              fi
+              
+              if [ "$FIXES" -gt 0 ]; then
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🐛 Bug Fixes ($FIXES)
+$(echo "$CHANGELOG_CONTENT" | grep "fix:" | sed 's/^- /-  /')
+
+"
+              fi
+              
+              if [ "$BREAKING" -gt 0 ]; then
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ⚠️ Breaking Changes ($BREAKING)
+$(echo "$CHANGELOG_CONTENT" | grep -E "BREAKING CHANGE|!" | sed 's/^- /- /')
+
+"
+              fi
+              
+              if [ "$PERF" -gt 0 ]; then
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ⚡ Performance Improvements ($PERF)
+$(echo "$CHANGELOG_CONTENT" | grep "perf:" | sed 's/^- /-  /')
+
+"
+              fi
+              
+              if [ "$REFACTOR" -gt 0 ]; then
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔧 Code Refactoring ($REFACTOR)
+$(echo "$CHANGELOG_CONTENT" | grep "refactor:" | sed 's/^- /-  /')
+
+"
+              fi
+              
+              if [ "$DOCS" -gt 0 ]; then
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 📚 Documentation ($DOCS)
+$(echo "$CHANGELOG_CONTENT" | grep "docs:" | sed 's/^- /-  /')
+
+"
+              fi
+              
+              if [ "$SECURITY" -gt 0 ]; then
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔒 Security Updates ($SECURITY)
+$(echo "$CHANGELOG_CONTENT" | grep -i "security\|vulnerability\|cve\|exploit" | sed 's/^- /-  /')
+
+"
+              fi
+              
+              # Add other changes if any
+              OTHER_CHANGES=$(echo "$CHANGELOG_CONTENT" | grep -v -E "feat:|fix:|BREAKING CHANGE|!|perf:|refactor:|docs:|chore:|security|vulnerability|cve|exploit" | grep "^-" || echo "")
+              if [ -n "$OTHER_CHANGES" ]; then
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔄 Other Changes
+$OTHER_CHANGES
+
+"
+              fi
+              
+              # If no categorized changes found, use original content
+              if [ -z "$FORMATTED_CHANGELOG" ]; then
+                FORMATTED_CHANGELOG="$CHANGELOG_CONTENT"
+              fi
+              
               echo "changelog<<EOF" >> $GITHUB_OUTPUT
-              echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+              echo "$FORMATTED_CHANGELOG" >> $GITHUB_OUTPUT
               echo "EOF" >> $GITHUB_OUTPUT
+              
+              # Output change statistics
+              echo "features=$FEATURES" >> $GITHUB_OUTPUT
+              echo "fixes=$FIXES" >> $GITHUB_OUTPUT
+              echo "breaking=$BREAKING" >> $GITHUB_OUTPUT
+              echo "docs=$DOCS" >> $GITHUB_OUTPUT
+              echo "perf=$PERF" >> $GITHUB_OUTPUT
+              echo "refactor=$REFACTOR" >> $GITHUB_OUTPUT
+              echo "security=$SECURITY" >> $GITHUB_OUTPUT
+              echo "total_changes=$TOTAL_CHANGES" >> $GITHUB_OUTPUT
             else
               echo "changelog=See CHANGELOG.md for details." >> $GITHUB_OUTPUT
+              echo "features=0" >> $GITHUB_OUTPUT
+              echo "fixes=0" >> $GITHUB_OUTPUT
+              echo "breaking=0" >> $GITHUB_OUTPUT
+              echo "security=0" >> $GITHUB_OUTPUT
+              echo "total_changes=0" >> $GITHUB_OUTPUT
             fi
+            
+            echo "previous_version=$PREVIOUS_VERSION" >> $GITHUB_OUTPUT
           else
             echo "changelog=No changelog available." >> $GITHUB_OUTPUT
+            echo "previous_version=0.0.2" >> $GITHUB_OUTPUT
+            echo "features=0" >> $GITHUB_OUTPUT
+            echo "fixes=0" >> $GITHUB_OUTPUT
+            echo "breaking=0" >> $GITHUB_OUTPUT
+            echo "security=0" >> $GITHUB_OUTPUT
+            echo "total_changes=0" >> $GITHUB_OUTPUT
           fi
+
+      - name: Generate build timestamp
+        id: timestamp
+        run: echo "build_time=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
 
       - name: Build and release Tauri app
         uses: tauri-apps/tauri-action@v0
@@ -354,13 +462,25 @@ jobs:
           tagName: ${{ needs.prepare-release.outputs.tag }}
           releaseName: "mpesa2csv ${{ needs.prepare-release.outputs.tag }}"
           releaseBody: |
-            ## ✨ What's New
+            ## 🚀 What's New in v${{ needs.prepare-release.outputs.version }}
+
+            ${{ steps.changelog.outputs.total_changes > 0 && format('📊 **Release Summary**: {0} changes across {1} categories', steps.changelog.outputs.total_changes, (steps.changelog.outputs.features > 0 && '1' || '0') + (steps.changelog.outputs.fixes > 0 && '1' || '0') + (steps.changelog.outputs.breaking > 0 && '1' || '0') + (steps.changelog.outputs.perf > 0 && '1' || '0') + (steps.changelog.outputs.refactor > 0 && '1' || '0') + (steps.changelog.outputs.docs > 0 && '1' || '0')) || '' }}
+
+            ${{ steps.changelog.outputs.breaking > 0 && '> ⚠️ **BREAKING CHANGES**: This release contains breaking changes. Please review the changelog carefully before updating.' || '' }}
+
+            ${{ steps.changelog.outputs.security > 0 && '> 🔒 **SECURITY UPDATE**: This release includes important security fixes. We recommend updating as soon as possible.' || '' }}
 
             ${{ steps.changelog.outputs.changelog }}
+
+            ${{ steps.changelog.outputs.features > 0 && steps.changelog.outputs.fixes > 0 && format('🎯 **Highlights**: This release brings {0} new features and fixes {1} bugs for a better user experience.', steps.changelog.outputs.features, steps.changelog.outputs.fixes) || '' }}
+            ${{ steps.changelog.outputs.features > 0 && steps.changelog.outputs.fixes == 0 && format('✨ **Feature Release**: Introducing {0} new features to enhance your workflow.', steps.changelog.outputs.features) || '' }}
+            ${{ steps.changelog.outputs.features == 0 && steps.changelog.outputs.fixes > 0 && format('🔧 **Maintenance Release**: This update focuses on stability with {0} bug fixes.', steps.changelog.outputs.fixes) || '' }}
 
             ---
 
             ## 📥 Download & Installation
+
+            Choose the appropriate download for your platform:
 
             | Platform | Architecture | Download | Installation |
             |----------|-------------|----------|--------------|
@@ -370,30 +490,27 @@ jobs:
             | **Linux** | x64 (Ubuntu/Debian) | [📥 Download .deb](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.deb) | `sudo dpkg -i mpesa2csv_*.deb` |
             | **Linux** | x64 (Portable) | [📥 Download .AppImage](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.AppImage) | `chmod +x mpesa2csv_*.AppImage && ./mpesa2csv_*.AppImage` |
 
+            ### 📊 Release Metadata
+
+            - **Version**: `${{ needs.prepare-release.outputs.version }}`
+            - **Build Date**: `${{ steps.timestamp.outputs.build_time }}`
+            - **Total Changes**: ${{ steps.changelog.outputs.total_changes }}
+            - **Platforms**: Windows, macOS (Intel + Apple Silicon), Linux
+            ${{ steps.changelog.outputs.breaking > 0 && format('- **Breaking Changes**: {0}', steps.changelog.outputs.breaking) || '' }}
+
             ### 🔍 System Requirements
 
             - **Windows**: Windows 10 version 1903 or later
-            - **macOS**: macOS 10.15 Catalina or later
+            - **macOS**: macOS 10.15 Catalina or later  
             - **Linux**: Modern distribution with GTK 3.24+ and WebKit2GTK 4.1+
 
-            ---
-
-            ## 🔄 Auto-Update
+            ### 🔄 Auto-Update
 
             > **Note**: If you have a previous version installed, the app will automatically notify you when this update is available and guide you through the update process.
 
             ---
 
-
-
-            ## 📚 Resources
-
-            - 📖 **Documentation**: [User Guide](https://github.com/DavidAmunga/mpesa2csv#readme)
-            - 📋 **Full Changelog**: [CHANGELOG.md](https://github.com/DavidAmunga/mpesa2csv/blob/main/CHANGELOG.md)
-            - 🐛 **Report Issues**: [GitHub Issues](https://github.com/DavidAmunga/mpesa2csv/issues)
-            - 💬 **Support**: [Discussions](https://github.com/DavidAmunga/mpesa2csv/discussions)
-
-            ---
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.changelog.outputs.previous_version || '0.0.2' }}...v${{ needs.prepare-release.outputs.version }}
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
