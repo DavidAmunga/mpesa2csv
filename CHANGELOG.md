@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.1.2
+
+### Patch Changes
+
+- 4cf8a01: feat:test release
+
 ## 0.2.0
 
 ### Minor Changes
