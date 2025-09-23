@@ -1,5 +1,16 @@
 # mpesa2csv
 
+## 0.1.5
+
+### Patch Changes
+
+- 5b20030: Fix release process with proper git tagging and GitHub release creation
+
+  - Add automatic git tag creation in changeset workflow
+  - Improve GitHub release descriptions with changelog content
+  - Fix version synchronization between package.json and tauri.conf.json
+  - Add comprehensive release documentation and helper scripts
+
 ## 0.1.4
 
 ### Patch Changes
