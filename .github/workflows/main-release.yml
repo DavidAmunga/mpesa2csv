@@ -345,61 +345,37 @@ jobs:
               # Create formatted changelog with emojis
               FORMATTED_CHANGELOG=""
               if [ "$FEATURES" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ✨ New Features ($FEATURES)
-$(echo "$CHANGELOG_CONTENT" | grep "feat:" | sed 's/^- /-  /')
-
-"
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ✨ New Features ($FEATURES)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep "feat:" | sed 's/^- /-  /')"$'\n\n'
               fi
               
               if [ "$FIXES" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🐛 Bug Fixes ($FIXES)
-$(echo "$CHANGELOG_CONTENT" | grep "fix:" | sed 's/^- /-  /')
-
-"
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🐛 Bug Fixes ($FIXES)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep "fix:" | sed 's/^- /-  /')"$'\n\n'
               fi
               
               if [ "$BREAKING" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ⚠️ Breaking Changes ($BREAKING)
-$(echo "$CHANGELOG_CONTENT" | grep -E "BREAKING CHANGE|!" | sed 's/^- /- /')
-
-"
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ⚠️ Breaking Changes ($BREAKING)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -E "BREAKING CHANGE|!" | sed 's/^- /- /')"$'\n\n'
               fi
               
               if [ "$PERF" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ⚡ Performance Improvements ($PERF)
-$(echo "$CHANGELOG_CONTENT" | grep "perf:" | sed 's/^- /-  /')
-
-"
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ⚡ Performance Improvements ($PERF)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep "perf:" | sed 's/^- /-  /')"$'\n\n'
               fi
               
               if [ "$REFACTOR" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔧 Code Refactoring ($REFACTOR)
-$(echo "$CHANGELOG_CONTENT" | grep "refactor:" | sed 's/^- /-  /')
-
-"
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔧 Code Refactoring ($REFACTOR)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep "refactor:" | sed 's/^- /-  /')"$'\n\n'
               fi
               
               if [ "$DOCS" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 📚 Documentation ($DOCS)
-$(echo "$CHANGELOG_CONTENT" | grep "docs:" | sed 's/^- /-  /')
-
-"
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 📚 Documentation ($DOCS)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep "docs:" | sed 's/^- /-  /')"$'\n\n'
               fi
               
               if [ "$SECURITY" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔒 Security Updates ($SECURITY)
-$(echo "$CHANGELOG_CONTENT" | grep -i "security\|vulnerability\|cve\|exploit" | sed 's/^- /-  /')
-
-"
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔒 Security Updates ($SECURITY)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -i "security\|vulnerability\|cve\|exploit" | sed 's/^- /-  /')"$'\n\n'
               fi
               
               # Add other changes if any
               OTHER_CHANGES=$(echo "$CHANGELOG_CONTENT" | grep -v -E "feat:|fix:|BREAKING CHANGE|!|perf:|refactor:|docs:|chore:|security|vulnerability|cve|exploit" | grep "^-" || echo "")
               if [ -n "$OTHER_CHANGES" ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔄 Other Changes
-$OTHER_CHANGES
-
-"
+                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔄 Other Changes"$'\n'"$OTHER_CHANGES"$'\n\n'
               fi
               
               # If no categorized changes found, use original content
@@ -464,7 +440,7 @@ $OTHER_CHANGES
           releaseBody: |
             ## 🚀 What's New in v${{ needs.prepare-release.outputs.version }}
 
-            ${{ steps.changelog.outputs.total_changes > 0 && format('📊 **Release Summary**: {0} changes across {1} categories', steps.changelog.outputs.total_changes, (steps.changelog.outputs.features > 0 && '1' || '0') + (steps.changelog.outputs.fixes > 0 && '1' || '0') + (steps.changelog.outputs.breaking > 0 && '1' || '0') + (steps.changelog.outputs.perf > 0 && '1' || '0') + (steps.changelog.outputs.refactor > 0 && '1' || '0') + (steps.changelog.outputs.docs > 0 && '1' || '0')) || '' }}
+            ${{ steps.changelog.outputs.total_changes > 0 && format('📊 **Release Summary**: {0} changes', steps.changelog.outputs.total_changes) || '' }}
 
             ${{ steps.changelog.outputs.breaking > 0 && '> ⚠️ **BREAKING CHANGES**: This release contains breaking changes. Please review the changelog carefully before updating.' || '' }}
 
