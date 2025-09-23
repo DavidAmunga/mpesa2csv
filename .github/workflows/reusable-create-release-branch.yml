@@ -1,0 +1,119 @@
+name: Create Release Branch (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Version to create branch for (e.g., v1.2.3)"
+        required: true
+        type: string
+      max_branches:
+        description: "Maximum number of release branches to keep"
+        required: false
+        type: number
+        default: 5
+    outputs:
+      branch_created:
+        description: "Whether a new branch was created"
+        value: ${{ jobs.create-branch.outputs.branch_created }}
+      branch_name:
+        description: "Name of the release branch"
+        value: ${{ jobs.create-branch.outputs.branch_name }}
+      branches_deleted:
+        description: "Number of old branches deleted"
+        value: ${{ jobs.create-branch.outputs.branches_deleted }}
+
+permissions:
+  contents: write
+
+jobs:
+  create-branch:
+    name: Create Release Branch
+    runs-on: ubuntu-latest
+    outputs:
+      branch_created: ${{ steps.create.outputs.created }}
+      branch_name: ${{ steps.create.outputs.branch_name }}
+      branches_deleted: ${{ steps.cleanup.outputs.deleted_count }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release branch
+        id: create
+        run: |
+          VERSION="${{ inputs.version }}"
+
+          # Extract version number from tag (v1.2.3 -> 1.2.3)
+          if [[ "$VERSION" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            VERSION_NUM="${BASH_REMATCH[1]}"
+            BRANCH_NAME="release/$VERSION_NUM"
+            
+            # Configure git
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            
+            # Check if branch already exists
+            if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+              echo "ℹ️ Release branch $BRANCH_NAME already exists"
+              echo "created=false" >> $GITHUB_OUTPUT
+              echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+            else
+              # Create and push the branch from the current ref (tag)
+              git checkout -b "$BRANCH_NAME"
+              git push origin "$BRANCH_NAME"
+              echo "✅ Created release branch: $BRANCH_NAME from ${{ github.ref }}"
+              echo "created=true" >> $GITHUB_OUTPUT
+              echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ Invalid version format: $VERSION (expected vX.Y.Z)"
+            echo "created=false" >> $GITHUB_OUTPUT
+            echo "branch_name=" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Cleanup old release branches
+        id: cleanup
+        if: steps.create.outputs.created == 'true'
+        run: |
+          MAX_BRANCHES=${{ inputs.max_branches }}
+          DELETED_COUNT=0
+
+          echo "🧹 Checking for old release branches to cleanup (keeping max $MAX_BRANCHES)..."
+
+          # Get all release branches sorted by version (newest first)
+          RELEASE_BRANCHES=$(git ls-remote --heads origin 'refs/heads/release/*' | \
+            sed 's/.*refs\/heads\///' | \
+            sort -t/ -k2 -V -r)
+
+          # Count branches
+          BRANCH_COUNT=$(echo "$RELEASE_BRANCHES" | grep -c '^' || echo "0")
+
+          if [ "$BRANCH_COUNT" -gt "$MAX_BRANCHES" ]; then
+            echo "Found $BRANCH_COUNT release branches, removing oldest ones..."
+            
+            # Get branches to delete (all after the max)
+            BRANCHES_TO_DELETE=$(echo "$RELEASE_BRANCHES" | tail -n +$((MAX_BRANCHES + 1)))
+            
+            for BRANCH in $BRANCHES_TO_DELETE; do
+              if [ -n "$BRANCH" ]; then
+                echo "🗑️ Deleting old branch: $BRANCH"
+                if git push origin --delete "$BRANCH"; then
+                  echo "✅ Deleted $BRANCH"
+                  DELETED_COUNT=$((DELETED_COUNT + 1))
+                else
+                  echo "⚠️ Failed to delete $BRANCH"
+                fi
+              fi
+            done
+            
+            echo "✅ Cleanup complete. Deleted $DELETED_COUNT branches."
+          else
+            echo "✅ Currently $BRANCH_COUNT release branches. No cleanup needed."
+          fi
+
+          echo "deleted_count=$DELETED_COUNT" >> $GITHUB_OUTPUT

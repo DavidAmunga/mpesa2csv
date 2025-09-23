@@ -35,11 +35,30 @@ jobs:
         with:
           # This expects you to have a script called release which does a build for your packages and calls changeset publish
           publish: pnpm run release
+          version: pnpm run version
           title: "chore: release version packages"
           commit: "chore: release version packages"
           createGithubReleases: false # We'll handle this in the build workflow
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync versions after changesets
+        if: steps.changesets.outputs.hasChangesets == 'true' || steps.changesets.outputs.published == 'true'
+        run: |
+          echo "📦 Ensuring all version files are synced..."
+          pnpm run sync-versions
+
+          # Check if there are any changes to commit
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add .
+            git commit -m "chore: sync version files after changesets"
+            git push
+            echo "✅ Version files synced and committed"
+          else
+            echo "ℹ️ No version sync changes needed"
+          fi
 
       - name: Create Git Tag
         if: steps.changesets.outputs.published == 'true'

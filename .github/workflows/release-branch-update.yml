@@ -1,0 +1,136 @@
+name: Release Branch Update
+
+on:
+  push:
+    branches:
+      - 'release/**'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-and-sync:
+    name: Update and Sync Release Branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from branch name
+        id: version
+        run: |
+          BRANCH_NAME="${{ github.ref_name }}"
+          if [[ "$BRANCH_NAME" =~ ^release/([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "✅ Extracted version: $VERSION"
+          else
+            echo "⚠️ Invalid release branch format: $BRANCH_NAME"
+            exit 1
+          fi
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check if PR already exists
+        id: check_pr
+        run: |
+          PR_EXISTS=$(gh pr list --base main --head ${{ github.ref_name }} --json number --jq length)
+          if [ "$PR_EXISTS" -gt 0 ]; then
+            PR_NUMBER=$(gh pr list --base main --head ${{ github.ref_name }} --json number --jq '.[0].number')
+            echo "pr_exists=true" >> $GITHUB_OUTPUT
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            echo "ℹ️ PR already exists: #$PR_NUMBER"
+          else
+            echo "pr_exists=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No existing PR found"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Pull Request
+        if: steps.check_pr.outputs.pr_exists == 'false'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Create PR body with release notes
+          cat > pr_body.md << EOF
+          ## 🚀 Release v$VERSION
+          
+          This PR contains hotfixes and patches for release v$VERSION.
+          
+          ### Changes in this release branch:
+          - Bug fixes and critical patches
+          - Security updates
+          - Documentation updates
+          
+          ### 🔄 Auto-merge
+          This PR will be automatically merged once all checks pass.
+          
+          ---
+          
+          **Note**: This is an automated PR created from the release branch. Any commits to the \`release/$VERSION\` branch will be automatically synced back to \`main\`.
+          EOF
+          
+          # Create the PR
+          PR_NUMBER=$(gh pr create \
+            --title "fix: sync release/$VERSION back to main" \
+            --body-file pr_body.md \
+            --base main \
+            --head ${{ github.ref_name }} \
+            --label "hotfix,automated,release" \
+            --assignee "@me" \
+            --json number --jq '.number')
+          
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "✅ Created PR #$PR_NUMBER"
+          
+          # Clean up
+          rm pr_body.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge
+        if: steps.check_pr.outputs.pr_exists == 'false'
+        run: |
+          PR_NUMBER="${{ steps.create_pr.outputs.pr_number || steps.check_pr.outputs.pr_number }}"
+          
+          # Wait a moment for PR to be fully created
+          sleep 5
+          
+          # Enable auto-merge with squash
+          gh pr merge $PR_NUMBER --auto --squash
+          echo "✅ Enabled auto-merge for PR #$PR_NUMBER"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update PR if exists
+        if: steps.check_pr.outputs.pr_exists == 'true'
+        run: |
+          PR_NUMBER="${{ steps.check_pr.outputs.pr_number }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          echo "ℹ️ Updating existing PR #$PR_NUMBER with latest changes"
+          
+          # Update PR with latest commit info
+          LATEST_COMMIT=$(git log -1 --pretty=format:"%h - %s")
+          COMMIT_AUTHOR=$(git log -1 --pretty=format:"%an")
+          
+          gh pr comment $PR_NUMBER --body "🔄 **Auto-sync update**
+
+          Latest changes from release/$VERSION:
+          - **Commit**: \`$LATEST_COMMIT\`
+          - **Author**: $COMMIT_AUTHOR
+          - **Timestamp**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          
+          This release branch will be automatically merged once all checks pass."
+          
+          echo "✅ Updated PR #$PR_NUMBER with latest changes"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
