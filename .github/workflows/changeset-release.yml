@@ -52,7 +52,16 @@ jobs:
           COMMIT_MSG=$(git log -1 --pretty=format:"%s")
           echo "Commit message: $COMMIT_MSG"
 
-          if [[ "$COMMIT_MSG" == *"chore: release version packages"* ]] || [[ "$COMMIT_MSG" == *"Version Packages"* ]]; then
+          # Check recent commits for changeset patterns
+          RECENT_COMMITS=$(git log -3 --pretty=format:"%s")
+          echo "Recent commits:"
+          echo "$RECENT_COMMITS"
+
+          if [[ "$COMMIT_MSG" == *"chore: release version packages"* ]] || \
+             [[ "$COMMIT_MSG" == *"Version Packages"* ]] || \
+             [[ "$COMMIT_MSG" == *"changeset-release"* ]] || \
+             [[ "$RECENT_COMMITS" == *"chore: release version packages"* ]] || \
+             [[ "$RECENT_COMMITS" == *"Version Packages"* ]]; then
             echo "is_release=true" >> $GITHUB_OUTPUT
             echo "✅ This appears to be a release merge"
           else
