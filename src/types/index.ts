@@ -1,0 +1,24 @@
+export interface MPesaStatement {
+  transactions: Transaction[];
+  fileName?: string;
+}
+
+export interface Transaction {
+  receiptNo: string;
+  completionTime: string;
+  details: string;
+  transactionStatus: string;
+  paidIn: number | null;
+  withdrawn: number | null;
+  balance: number;
+  raw: string;
+}
+
+export enum FileStatus {
+  IDLE = "idle",
+  LOADING = "loading",
+  PROTECTED = "protected",
+  PROCESSING = "processing",
+  SUCCESS = "success",
+  ERROR = "error",
+}
