@@ -22,3 +22,8 @@ export enum FileStatus {
   SUCCESS = "success",
   ERROR = "error",
 }
+
+export enum ExportFormat {
+  CSV = "csv",
+  XLSX = "xlsx",
+}

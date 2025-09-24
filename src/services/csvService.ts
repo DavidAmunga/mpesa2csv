@@ -25,4 +25,13 @@ export class CsvService {
     const blob = new Blob([content], { type: "text/csv" });
     return URL.createObjectURL(blob);
   }
+
+  static getFileName(statement: MPesaStatement, timestamp?: string): string {
+    const baseFileName = statement.fileName 
+      ? statement.fileName.replace(/\.[^/.]+$/, "") // Remove extension
+      : "mpesa-statement";
+    
+    const timeStamp = timestamp || new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+    return `${baseFileName}_${timeStamp}.csv`;
+  }
 }

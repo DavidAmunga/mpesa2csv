@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { FileStatus } from "../types";
 import { Lock } from "lucide-react";
+import { cn } from "../lib/utils";
 
 interface PasswordPromptProps {
   onPasswordSubmit: (password: string) => void;
@@ -43,7 +44,7 @@ const PasswordPrompt: React.FC<PasswordPromptProps> = ({
       )}
 
       {currentFileName && (
-        <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-md max-w-md">
+        <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 px-4 py-2 bg-gray-50 dark:bg-zinc-700 rounded-md max-w-md">
           {currentFileName}
         </div>
       )}
@@ -56,13 +57,12 @@ const PasswordPrompt: React.FC<PasswordPromptProps> = ({
         <div className="space-y-4">
           <input
             type="password"
-            className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 dark:text-gray-100 ${
-              error
-                ? "border-red-500 focus:ring-red-500"
-                : "border-gray-300 dark:border-gray-600"
-            }`}
+            className={cn(`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-zinc-800 dark:text-gray-100 ${
+                  error ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
+            }`)}
             placeholder="Enter password"
             value={password}
+
             onChange={(e) => setPassword(e.target.value)}
             disabled={status === FileStatus.PROCESSING}
           />

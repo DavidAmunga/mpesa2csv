@@ -143,7 +143,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       className={`card text-center transition-all duration-300 rounded-lg p-6 min-h-[250px] flex items-center justify-center ${
         dragActive
           ? "border-4 border-green-500 bg-green-50 dark:bg-green-900/20 shadow-lg scale-105 transform"
-          : "border-2 hover:bg-green-500/5 dark:hover:bg-green-500/10 border-dashed hover:border-green-500 cursor-pointer border-gray-300 dark:border-gray-600 bg-white dark:bg-zinc-700 shadow-sm hover:shadow-md"
+          : "border-2 hover:bg-green-500/5 dark:hover:bg-green-500/10 border-dashed hover:border-green-500 cursor-pointer border-gray-300 dark:border-gray-600 bg-white dark:bg-zinc-800 shadow-sm hover:shadow-md"
       }`}
       role="button"
       tabIndex={0}

@@ -1,20 +1,31 @@
 import { useState, useEffect } from "react";
-import { MPesaStatement, FileStatus } from "./types";
+import { MPesaStatement, FileStatus, ExportFormat } from "./types";
 import { PdfService } from "./services/pdfService";
 import { CsvService } from "./services/csvService";
+import { ExportService } from "./services/exportService";
 import FileUploader from "./components/file-uploader";
 import PasswordPrompt from "./components/password-prompt";
 import { Download, RotateCcw } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import dayjs from "dayjs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./components/ui/select";
 
 function App() {
   const [files, setFiles] = useState<File[]>([]);
   const [status, setStatus] = useState<FileStatus>(FileStatus.IDLE);
   const [error, setError] = useState<string | undefined>(undefined);
   const [statements, setStatements] = useState<MPesaStatement[]>([]);
-  const [csvLink, setCsvLink] = useState<string>("");
-  const [csvFileName, setCsvFileName] = useState<string>("");
+  const [exportLink, setExportLink] = useState<string>("");
+  const [exportFileName, setExportFileName] = useState<string>("");
+  const [exportFormat, setExportFormat] = useState<ExportFormat>(
+    ExportFormat.XLSX
+  );
   const [currentFileIndex, setCurrentFileIndex] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
@@ -101,11 +112,18 @@ function App() {
       const combinedStatement = combineStatements(processedStatements);
       setStatements([combinedStatement]);
 
-      const downloadLink = CsvService.createDownloadLink(combinedStatement);
-      const fileName = `Combined_M-PESA_Statements_${formatDateForFilename()}.csv`;
+      const downloadLink = ExportService.createDownloadLink(
+        combinedStatement,
+        exportFormat
+      );
+      const fileName = ExportService.getFileName(
+        combinedStatement,
+        exportFormat,
+        formatDateForFilename()
+      );
 
-      setCsvLink(downloadLink);
-      setCsvFileName(fileName);
+      setExportLink(downloadLink);
+      setExportFileName(fileName);
       setStatus(FileStatus.SUCCESS);
     }
 
@@ -160,11 +178,18 @@ function App() {
         }
       } else {
         const combinedStatement = combineStatements(updatedStatements);
-        const downloadLink = CsvService.createDownloadLink(combinedStatement);
-        const fileName = `Combined_M-PESA_Statements_${formatDateForFilename()}.csv`;
+        const downloadLink = ExportService.createDownloadLink(
+          combinedStatement,
+          exportFormat
+        );
+        const fileName = ExportService.getFileName(
+          combinedStatement,
+          exportFormat,
+          formatDateForFilename()
+        );
 
-        setCsvLink(downloadLink);
-        setCsvFileName(fileName);
+        setExportLink(downloadLink);
+        setExportFileName(fileName);
         setStatus(FileStatus.SUCCESS);
       }
     } catch (err: any) {
@@ -181,10 +206,10 @@ function App() {
     setCurrentFileIndex(0);
     setIsDownloading(false);
 
-    if (csvLink) {
-      URL.revokeObjectURL(csvLink);
-      setCsvLink("");
-      setCsvFileName("");
+    if (exportLink) {
+      URL.revokeObjectURL(exportLink);
+      setExportLink("");
+      setExportFileName("");
     }
   };
 
@@ -196,14 +221,32 @@ function App() {
 
     try {
       const combinedStatement = statements[0];
-      const csvContent = CsvService.convertStatementToCsv(combinedStatement);
+      let content: Uint8Array;
 
-      const BOM = "\uFEFF";
-      const csvWithBOM = BOM + csvContent;
+      if (exportFormat === ExportFormat.CSV) {
+        const csvContent = CsvService.convertStatementToCsv(combinedStatement);
+        const BOM = "\uFEFF";
+        const csvWithBOM = BOM + csvContent;
+        content = new TextEncoder().encode(csvWithBOM);
+      } else if (exportFormat === ExportFormat.XLSX) {
+        const xlsxBuffer = ExportService.createDownloadLink(
+          combinedStatement,
+          ExportFormat.XLSX
+        );
+        // For XLSX, we need to get the actual ArrayBuffer from the service
+        const response = await fetch(xlsxBuffer);
+        const arrayBuffer = await response.arrayBuffer();
+        content = new Uint8Array(arrayBuffer);
+      } else {
+        throw new Error("Unsupported export format");
+      }
 
-      await invoke<string>("save_csv_file", {
-        csvContent: csvWithBOM,
-        defaultFilename: csvFileName || "mpesa_statement.csv",
+      await invoke<string>("save_file", {
+        content: Array.from(content),
+        defaultFilename:
+          exportFileName ||
+          `mpesa_statement.${ExportService.getFileExtension(exportFormat)}`,
+        fileType: ExportService.getFileExtension(exportFormat),
       });
 
       setError(undefined);
@@ -221,11 +264,11 @@ function App() {
   // Clean up resources when component unmounts
   useEffect(() => {
     return () => {
-      if (csvLink) {
-        URL.revokeObjectURL(csvLink);
+      if (exportLink) {
+        URL.revokeObjectURL(exportLink);
       }
     };
-  }, [csvLink]);
+  }, [exportLink]);
 
   return (
     <div className="min-h-screen max-h-screen bg-transparent flex flex-col overflow-hidden">
@@ -260,7 +303,7 @@ function App() {
                 />
               </div>
             ) : status === FileStatus.PROCESSING ? (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 text-center flex flex-col items-center justify-center transition-all duration-300 min-h-[300px]">
+              <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-gray-200 dark:border-zinc-700 p-6 text-center flex flex-col items-center justify-center transition-all duration-300 min-h-[300px]">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
                 <p className="text-gray-600 dark:text-gray-300">
                   Processing file {currentFileIndex + 1} of {files.length}...
@@ -272,16 +315,53 @@ function App() {
                 )}
               </div>
             ) : status === FileStatus.SUCCESS && statements.length > 0 ? (
-              <div className="rounded-lg px-6 py-5 transition-all duration-300">
+              <div className="rounded-lg px-6 py-0 transition-all duration-300">
                 <div className="text-center mb-5">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
                     🎉 Conversion Complete!
                   </h2>
                   <p className="text-gray-600 dark:text-gray-300">
                     Successfully converted {files.length} PDF file
-                    {files.length > 1 ? "s" : ""} into a CSV with{" "}
+                    {files.length > 1 ? "s" : ""} with{" "}
                     {statements[0].transactions.length} transactions
                   </p>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Export Format
+                  </label>
+                  <Select
+                    value={exportFormat}
+                    onValueChange={(value: ExportFormat) => {
+                      setExportFormat(value);
+                      const combinedStatement = statements[0];
+                      const downloadLink = ExportService.createDownloadLink(
+                        combinedStatement,
+                        value
+                      );
+                      const fileName = ExportService.getFileName(
+                        combinedStatement,
+                        value,
+                        formatDateForFilename()
+                      );
+                      setExportLink(downloadLink);
+                      setExportFileName(fileName);
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select export format">
+                        {ExportService.getFormatDisplayName(exportFormat)}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ExportService.getAllFormats().map((format) => (
+                        <SelectItem key={format} value={format}>
+                          {ExportService.getFormatDisplayName(format)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 justify-center mb-5">
@@ -302,14 +382,15 @@ function App() {
                     ) : (
                       <>
                         <Download className="w-5 h-5" />
-                        Download CSV
+                        Download{" "}
+                        {ExportService.getFormatDisplayName(exportFormat)}
                       </>
                     )}
                   </button>
 
                   <button
                     onClick={handleReset}
-                    className="cursor-pointer border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 px-6 py-3 rounded-lg font-medium flex items-center gap-2 justify-center transition-colors"
+                    className="cursor-pointer border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-zinc-700 dark:text-gray-200 px-6 py-3 rounded-lg font-medium flex items-center gap-2 justify-center transition-colors"
                   >
                     <RotateCcw className="w-5 h-5" />
                     Process More Files
@@ -318,7 +399,7 @@ function App() {
 
                 <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
                   <p className="text-xs text-gray-500 dark:text-gray-400 text-center truncate">
-                    File: {csvFileName}
+                    File: {exportFileName}
                   </p>
                 </div>
               </div>
