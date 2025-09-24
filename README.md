@@ -17,7 +17,7 @@ This application processes all data locally on your device. No data is sent to a
 
 ### Pre-built Binaries
 
-Download the latest release for your operating system from the [Releases](https://github.com/DavidAmunga/releases) page:
+Download the latest release for your operating system from the [Releases](https://github.com/DavidAmunga/mpesa2csv/releases) page:
 
 - **Windows**: Download the `.exe` installer
 - **macOS**: Download the `.dmg` file (separate versions for Intel and Apple Silicon)
@@ -79,15 +79,16 @@ The application includes automatic update functionality. When a new version is a
 - [PDF.js](https://mozilla.github.io/pdf.js/) - PDF parsing library
 - [PapaParse](https://www.papaparse.com/) - CSV generation library
 
-### Release Process
+## Contributing
 
-This project uses automated CI/CD for releases. See [RELEASE_GUIDE.md](./RELEASE_GUIDE.md) for detailed information about:
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on how to get started.
 
-- Setting up signing keys
-- Creating releases
-- Managing versions
-- Platform-specific builds
-- Auto-update configuration
+### Quick Start for Contributors
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feat/your-feature-name`
+3. Make your changes and test locally
+4. Submit a pull request using our [PR template](.github/pull_request_template.md)
 
 ## License
 
