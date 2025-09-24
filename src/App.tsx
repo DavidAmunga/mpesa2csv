@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { MPesaStatement, FileStatus, ExportFormat } from "./types";
 import { PdfService } from "./services/pdfService";
-import { CsvService } from "./services/csvService";
 import { ExportService } from "./services/exportService";
 import FileUploader from "./components/file-uploader";
 import PasswordPrompt from "./components/password-prompt";
@@ -15,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
+import { Button } from "./components/ui/button";
 
 function App() {
   const [files, setFiles] = useState<File[]>([]);
@@ -112,17 +112,16 @@ function App() {
       const combinedStatement = combineStatements(processedStatements);
       setStatements([combinedStatement]);
 
-      const downloadLink = ExportService.createDownloadLink(
-        combinedStatement,
-        exportFormat
-      );
       const fileName = ExportService.getFileName(
         combinedStatement,
         exportFormat,
         formatDateForFilename()
       );
 
-      setExportLink(downloadLink);
+      // Generate download link asynchronously
+      ExportService.createDownloadLink(combinedStatement, exportFormat)
+        .then(setExportLink)
+        .catch(() => setExportLink(""));
       setExportFileName(fileName);
       setStatus(FileStatus.SUCCESS);
     }
@@ -178,17 +177,15 @@ function App() {
         }
       } else {
         const combinedStatement = combineStatements(updatedStatements);
-        const downloadLink = ExportService.createDownloadLink(
-          combinedStatement,
-          exportFormat
-        );
         const fileName = ExportService.getFileName(
           combinedStatement,
           exportFormat,
           formatDateForFilename()
         );
 
-        setExportLink(downloadLink);
+        ExportService.createDownloadLink(combinedStatement, exportFormat)
+          .then(setExportLink)
+          .catch(() => setExportLink(""));
         setExportFileName(fileName);
         setStatus(FileStatus.SUCCESS);
       }
@@ -221,25 +218,12 @@ function App() {
 
     try {
       const combinedStatement = statements[0];
-      let content: Uint8Array;
 
-      if (exportFormat === ExportFormat.CSV) {
-        const csvContent = CsvService.convertStatementToCsv(combinedStatement);
-        const BOM = "\uFEFF";
-        const csvWithBOM = BOM + csvContent;
-        content = new TextEncoder().encode(csvWithBOM);
-      } else if (exportFormat === ExportFormat.XLSX) {
-        const xlsxBuffer = ExportService.createDownloadLink(
-          combinedStatement,
-          ExportFormat.XLSX
-        );
-        // For XLSX, we need to get the actual ArrayBuffer from the service
-        const response = await fetch(xlsxBuffer);
-        const arrayBuffer = await response.arrayBuffer();
-        content = new Uint8Array(arrayBuffer);
-      } else {
-        throw new Error("Unsupported export format");
-      }
+      const arrayBuffer = await ExportService.getFileBuffer(
+        combinedStatement,
+        exportFormat
+      );
+      const content = new Uint8Array(arrayBuffer);
 
       await invoke<string>("save_file", {
         content: Array.from(content),
@@ -271,7 +255,7 @@ function App() {
   }, [exportLink]);
 
   return (
-    <div className="min-h-screen max-h-screen bg-transparent flex flex-col overflow-hidden">
+    <div className="min-h-screen max-h-screen  flex flex-col overflow-hidden">
       <div className="flex-1 mx-auto px-4 py-4 flex flex-col max-w-4xl w-full">
         <main className="flex-1 flex items-center justify-center">
           <div className="w-full max-w-2xl transition-all duration-300 ease-in-out">
@@ -284,10 +268,8 @@ function App() {
                   status={status}
                 />
                 {error && (
-                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 transition-all duration-300">
-                    <p className="text-red-800 dark:text-red-200 text-sm">
-                      {error}
-                    </p>
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 transition-all duration-300">
+                    <p className="text-destructive text-sm">{error}</p>
                   </div>
                 )}
               </div>
@@ -303,24 +285,24 @@ function App() {
                 />
               </div>
             ) : status === FileStatus.PROCESSING ? (
-              <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-gray-200 dark:border-zinc-700 p-6 text-center flex flex-col items-center justify-center transition-all duration-300 min-h-[300px]">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
-                <p className="text-gray-600 dark:text-gray-300">
+              <div className="rounded-lg shadow-sm p-6 text-center flex flex-col items-center justify-center transition-all duration-300 min-h-[300px]">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-foreground">
                   Processing file {currentFileIndex + 1} of {files.length}...
                 </p>
                 {files[currentFileIndex] && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 truncate max-w-full">
+                  <p className="text-sm text-muted-foreground mt-2 truncate max-w-full">
                     {files[currentFileIndex].name}
                   </p>
                 )}
               </div>
             ) : status === FileStatus.SUCCESS && statements.length > 0 ? (
-              <div className="rounded-lg px-6 py-0 transition-all duration-300">
+              <div className="rounded-lg px-6 py-6 transition-all duration-300 ">
                 <div className="text-center mb-5">
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                  <h2 className="text-xl font-semibold text-primary mb-2">
                     🎉 Conversion Complete!
                   </h2>
-                  <p className="text-gray-600 dark:text-gray-300">
+                  <p className="">
                     Successfully converted {files.length} PDF file
                     {files.length > 1 ? "s" : ""} with{" "}
                     {statements[0].transactions.length} transactions
@@ -328,7 +310,7 @@ function App() {
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium   mb-2">
                     Export Format
                   </label>
                   <Select
@@ -336,16 +318,15 @@ function App() {
                     onValueChange={(value: ExportFormat) => {
                       setExportFormat(value);
                       const combinedStatement = statements[0];
-                      const downloadLink = ExportService.createDownloadLink(
-                        combinedStatement,
-                        value
-                      );
                       const fileName = ExportService.getFileName(
                         combinedStatement,
                         value,
                         formatDateForFilename()
                       );
-                      setExportLink(downloadLink);
+
+                      ExportService.createDownloadLink(combinedStatement, value)
+                        .then(setExportLink)
+                        .catch(() => setExportLink(""));
                       setExportFileName(fileName);
                     }}
                   >
@@ -365,18 +346,15 @@ function App() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 justify-center mb-5">
-                  <button
+                  <Button
                     onClick={handleDownload}
                     disabled={isDownloading}
-                    className={`cursor-pointer px-6 py-3 rounded-lg font-medium flex items-center gap-2 justify-center transition-colors ${
-                      isDownloading
-                        ? "bg-gray-400 cursor-not-allowed text-white"
-                        : "bg-green-600 hover:bg-green-700 text-white"
-                    }`}
+                    size="lg"
+                    className="px-6"
                   >
                     {isDownloading ? (
                       <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current"></div>
                         Downloading...
                       </>
                     ) : (
@@ -386,19 +364,21 @@ function App() {
                         {ExportService.getFormatDisplayName(exportFormat)}
                       </>
                     )}
-                  </button>
+                  </Button>
 
-                  <button
+                  <Button
                     onClick={handleReset}
-                    className="cursor-pointer border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-zinc-700 dark:text-gray-200 px-6 py-3 rounded-lg font-medium flex items-center gap-2 justify-center transition-colors"
+                    variant="outline"
+                    size="lg"
+                    className="px-6 text-foreground"
                   >
                     <RotateCcw className="w-5 h-5" />
                     Process More Files
-                  </button>
+                  </Button>
                 </div>
 
-                <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center truncate">
+                <div className="pt-3 border-t border-border">
+                  <p className="text-xs text-muted-foreground text-center truncate">
                     File: {exportFileName}
                   </p>
                 </div>
@@ -407,12 +387,12 @@ function App() {
           </div>
         </main>
 
-        <footer className="flex-shrink-0 text-center text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 py-3 mt-4">
+        <footer className="flex-shrink-0 text-center text-xs  border-t border-border py-3 mt-4">
           <p>
             Built by{" "}
             <a
               href="https://twitter.com/davidamunga_"
-              className="text-green-600 hover:text-green-700 font-medium transition-colors"
+              className="text-green-500 hover:text-green-500/80 font-medium transition-colors"
               target="_blank"
               rel="noopener noreferrer"
             >

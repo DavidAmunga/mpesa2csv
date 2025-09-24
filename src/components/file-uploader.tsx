@@ -1,6 +1,8 @@
 import React, { useState, useRef, ChangeEvent, useEffect } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { FileStatus } from "../types";
+import { cn } from "@/lib/utils";
+import { Button } from "./ui/button";
 
 interface FileUploaderProps {
   onFilesSelected: (files: File[]) => void;
@@ -140,12 +142,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
   return (
     <div
-      className={`card text-center transition-all duration-300 rounded-lg p-6 min-h-[250px] flex items-center justify-center ${
+      className={cn(
+        "text-center transition-all duration-300 rounded-lg p-6 min-h-[250px] flex items-center justify-center cursor-pointer",
         dragActive
-          ? "border-4 border-green-500 bg-green-50 dark:bg-green-900/20 shadow-lg scale-105 transform"
-          : "border-2 hover:bg-green-500/5 dark:hover:bg-green-500/10 border-dashed hover:border-green-500 cursor-pointer border-gray-300 dark:border-gray-600 bg-white dark:bg-zinc-800 shadow-sm hover:shadow-md"
-      }`}
-      role="button"
+          ? "border-4 border-primary bg-primary/10 shadow-lg scale-105 transform"
+          : "border-2 border-dashed border-border hover:border-primary hover:bg-background/10 shadow-sm hover:shadow-md"
+      )}
       tabIndex={0}
       aria-label="Drop PDF files here or click to select files"
     >
@@ -158,11 +160,9 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           {dragActive ? "📂✨" : "💸→📝"}
         </span>
         <h3
-          className={`text-xl font-semibold transition-colors duration-300 ${
-            dragActive
-              ? "text-green-600 dark:text-green-400"
-              : "text-green-700 dark:text-green-300"
-          }`}
+          className={cn(
+            "text-xl text-primary font-semibold transition-colors duration-300"
+          )}
         >
           {dragActive
             ? "Drop your PDF files here!"
@@ -170,11 +170,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         </h3>
 
         <p
-          className={`max-w-md transition-colors duration-300 ${
-            dragActive
-              ? "text-green-600 dark:text-green-400 font-medium"
-              : "text-gray-600 dark:text-gray-300"
-          }`}
+          className={cn(
+            "max-w-md transition-colors duration-300",
+            dragActive ? "text-primary font-medium" : ""
+          )}
         >
           {dragActive
             ? "Release to upload your M-PESA statement PDFs"
@@ -182,10 +181,11 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         </p>
 
         {!dragActive && (
-          <button
+          <Button
             type="button"
             onClick={handleButtonClick}
-            className="cursor-pointer bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-md shadow-md hover:shadow-lg transition-all"
+            size="lg"
+            className="px-6 shadow-md hover:shadow-lg"
             disabled={
               status === FileStatus.LOADING || status === FileStatus.PROCESSING
             }
@@ -193,7 +193,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
             {status === FileStatus.LOADING
               ? "Loading Files..."
               : "Choose PDF Files"}
-          </button>
+          </Button>
         )}
 
         <input
@@ -207,11 +207,11 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
         {status === FileStatus.LOADING && (
           <div className="mt-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-500 mx-auto"></div>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
           </div>
         )}
 
-        <div className="text-xs text-gray-500 dark:text-gray-400 mt-4 flex items-center justify-center gap-1">
+        <div className="text-xs  mt-4 flex items-center justify-center gap-1">
           🔒 <strong>100% Private:</strong> All processing happens on your
           device. No data leaves your computer.
         </div>
