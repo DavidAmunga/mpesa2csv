@@ -32,23 +32,23 @@ const PasswordPrompt: React.FC<PasswordPromptProps> = ({
     <div className="flex flex-col items-center justify-center p-6 space-y-3">
       <Lock className="size-8 text-yellow-500" />
 
-      <h3 className="text-xl font-semibold text-green-700">
+      <h3 className="text-xl font-semibold text-green-700 dark:text-green-300">
         Password Protected PDF
       </h3>
 
       {totalFiles && totalFiles > 1 && (
-        <div className="text-sm text-gray-500 mb-2">
+        <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
           File {(currentFileIndex ?? 0) + 1} of {totalFiles}
         </div>
       )}
 
       {currentFileName && (
-        <div className="text-sm font-medium text-gray-700 mb-3 px-4 py-2 bg-gray-50 rounded-md max-w-md">
+        <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-md max-w-md">
           {currentFileName}
         </div>
       )}
 
-      <p className="text-gray-600 max-w-md text-center">
+      <p className="text-gray-600 dark:text-gray-300 max-w-md text-center">
         This PDF is password protected. Please enter the password to unlock it.
       </p>
 
@@ -56,8 +56,10 @@ const PasswordPrompt: React.FC<PasswordPromptProps> = ({
         <div className="space-y-4">
           <input
             type="password"
-            className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${
-              error ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+            className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 dark:text-gray-100 ${
+              error
+                ? "border-red-500 focus:ring-red-500"
+                : "border-gray-300 dark:border-gray-600"
             }`}
             placeholder="Enter password"
             value={password}
@@ -65,7 +67,9 @@ const PasswordPrompt: React.FC<PasswordPromptProps> = ({
             disabled={status === FileStatus.PROCESSING}
           />
 
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {error && (
+            <p className="text-red-500 dark:text-red-400 text-sm">{error}</p>
+          )}
 
           <button
             type="submit"
@@ -84,7 +88,7 @@ const PasswordPrompt: React.FC<PasswordPromptProps> = ({
         </div>
       </form>
 
-      <div className="text-xs text-gray-500 mt-4">
+      <div className="text-xs text-gray-500 dark:text-gray-400 mt-4">
         The password will only be used locally to decrypt the PDF file.
       </div>
     </div>

@@ -228,7 +228,7 @@ function App() {
   }, [csvLink]);
 
   return (
-    <div className="min-h-screen max-h-screen bg-white flex flex-col overflow-hidden">
+    <div className="min-h-screen max-h-screen bg-transparent flex flex-col overflow-hidden">
       <div className="flex-1 mx-auto px-4 py-4 flex flex-col max-w-4xl w-full">
         <main className="flex-1 flex items-center justify-center">
           <div className="w-full max-w-2xl transition-all duration-300 ease-in-out">
@@ -241,8 +241,10 @@ function App() {
                   status={status}
                 />
                 {error && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 transition-all duration-300">
-                    <p className="text-red-800 text-sm">{error}</p>
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 transition-all duration-300">
+                    <p className="text-red-800 dark:text-red-200 text-sm">
+                      {error}
+                    </p>
                   </div>
                 )}
               </div>
@@ -258,26 +260,26 @@ function App() {
                 />
               </div>
             ) : status === FileStatus.PROCESSING ? (
-              <div className="bg-white rounded-lg shadow-sm border p-6 text-center flex flex-col items-center justify-center transition-all duration-300 min-h-[300px]">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 text-center flex flex-col items-center justify-center transition-all duration-300 min-h-[300px]">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
-                <p className="text-gray-600">
+                <p className="text-gray-600 dark:text-gray-300">
                   Processing file {currentFileIndex + 1} of {files.length}...
                 </p>
                 {files[currentFileIndex] && (
-                  <p className="text-sm text-gray-500 mt-2 truncate max-w-full">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 truncate max-w-full">
                     {files[currentFileIndex].name}
                   </p>
                 )}
               </div>
             ) : status === FileStatus.SUCCESS && statements.length > 0 ? (
-              <div className="rounded-lg  px-6 py-5 transition-all duration-300">
+              <div className="rounded-lg px-6 py-5 transition-all duration-300">
                 <div className="text-center mb-5">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                    Ready to Download!
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    🎉 Conversion Complete!
                   </h2>
-                  <p className="text-gray-600">
-                    Successfully processed {files.length} file
-                    {files.length > 1 ? "s" : ""} with{" "}
+                  <p className="text-gray-600 dark:text-gray-300">
+                    Successfully converted {files.length} PDF file
+                    {files.length > 1 ? "s" : ""} into a CSV with{" "}
                     {statements[0].transactions.length} transactions
                   </p>
                 </div>
@@ -307,15 +309,15 @@ function App() {
 
                   <button
                     onClick={handleReset}
-                    className="cursor-pointer border border-gray-300 hover:bg-gray-50 px-6 py-3 rounded-lg font-medium flex items-center gap-2 justify-center transition-colors"
+                    className="cursor-pointer border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 px-6 py-3 rounded-lg font-medium flex items-center gap-2 justify-center transition-colors"
                   >
                     <RotateCcw className="w-5 h-5" />
                     Process More Files
                   </button>
                 </div>
 
-                <div className="pt-3 border-t border-gray-200">
-                  <p className="text-xs text-gray-500 text-center truncate">
+                <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center truncate">
                     File: {csvFileName}
                   </p>
                 </div>
@@ -324,7 +326,7 @@ function App() {
           </div>
         </main>
 
-        <footer className="flex-shrink-0 text-center text-xs text-gray-500 border-t border-gray-200 py-3 mt-4">
+        <footer className="flex-shrink-0 text-center text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 py-3 mt-4">
           <p>
             Built by{" "}
             <a

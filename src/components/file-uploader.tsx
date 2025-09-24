@@ -142,8 +142,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     <div
       className={`card text-center transition-all duration-300 rounded-lg p-6 min-h-[250px] flex items-center justify-center ${
         dragActive
-          ? "border-4 border-green-500 bg-green-50 shadow-lg scale-105 transform"
-          : "border-2 hover:bg-green-500/5 border-dashed hover:border-green-500 cursor-pointer border-gray-300 bg-white shadow-sm hover:shadow-md"
+          ? "border-4 border-green-500 bg-green-50 dark:bg-green-900/20 shadow-lg scale-105 transform"
+          : "border-2 hover:bg-green-500/5 dark:hover:bg-green-500/10 border-dashed hover:border-green-500 cursor-pointer border-gray-300 dark:border-gray-600 bg-white dark:bg-zinc-700 shadow-sm hover:shadow-md"
       }`}
       role="button"
       tabIndex={0}
@@ -159,22 +159,26 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         </span>
         <h3
           className={`text-xl font-semibold transition-colors duration-300 ${
-            dragActive ? "text-green-600" : "text-green-700"
+            dragActive
+              ? "text-green-600 dark:text-green-400"
+              : "text-green-700 dark:text-green-300"
           }`}
         >
           {dragActive
             ? "Drop your PDF files here!"
-            : "Upload M-PESA Statement PDFs"}
+            : "Convert M-PESA PDF's to CSV"}
         </h3>
 
         <p
           className={`max-w-md transition-colors duration-300 ${
-            dragActive ? "text-green-600 font-medium" : "text-gray-600"
+            dragActive
+              ? "text-green-600 dark:text-green-400 font-medium"
+              : "text-gray-600 dark:text-gray-300"
           }`}
         >
           {dragActive
             ? "Release to upload your M-PESA statement PDFs"
-            : "Drag and drop your M-PESA statement PDFs here, or click the button below to select files. You can select multiple files at once."}
+            : "Convert your PDF statements to CSV format instantly. Drag & drop multiple files or click below to get started."}
         </p>
 
         {!dragActive && (
@@ -187,8 +191,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({
             }
           >
             {status === FileStatus.LOADING
-              ? "Uploading..."
-              : "Select PDF Files"}
+              ? "Loading Files..."
+              : "Choose PDF Files"}
           </button>
         )}
 
@@ -207,9 +211,9 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           </div>
         )}
 
-        <div className="text-xs text-gray-500 mt-4">
-          Your M-PESA statements will be processed locally. No data is sent to
-          any server.
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-4 flex items-center justify-center gap-1">
+          🔒 <strong>100% Private:</strong> All processing happens on your
+          device. No data leaves your computer.
         </div>
       </div>
     </div>
