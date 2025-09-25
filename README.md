@@ -1,10 +1,10 @@
 # mpesa2csv
 
-A desktop application built with Tauri, React, and TypeScript that converts M-PESA statement PDFs to CSV format.
+A desktop application built with Tauri, React, and TypeScript that converts M-PESA statement PDFs to CSV/XLSX files.
 
 ## Features
 
-- Convert M-PESA statement PDF files to CSV format
+- Convert M-PESA statement PDF files to CSV/XLSX Files
 - Handle password-protected PDF files
 - Process the data locally - your statements never leave your computer
 - Modern and user-friendly interface
