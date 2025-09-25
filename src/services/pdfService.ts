@@ -54,37 +54,15 @@ export class PdfService {
   static async parseMpesaStatement(
     pdf: PDFDocumentProxy
   ): Promise<MPesaStatement> {
-    console.log(
-      "PdfService.parseMpesaStatement: Starting to parse PDF with",
-      pdf.numPages,
-      "pages"
-    );
     const numPages = pdf.numPages;
     let allText = "";
 
     for (let i = 1; i <= numPages; i++) {
-      console.log(
-        `PdfService.parseMpesaStatement: Extracting text from page ${i}/${numPages}`
-      );
       const pageText = await this.extractTextFromPage(pdf, i);
       allText += pageText + "\n";
     }
 
-    console.log(
-      "PdfService.parseMpesaStatement: Extracted text length:",
-      allText.length
-    );
-    console.log(
-      "PdfService.parseMpesaStatement: Text sample:",
-      allText.substring(0, 500)
-    );
-
     const transactions = this.parseTransactions(allText);
-    console.log(
-      "PdfService.parseMpesaStatement: Parsed",
-      transactions.length,
-      "transactions"
-    );
 
     return {
       transactions,
@@ -101,16 +79,14 @@ export class PdfService {
     let lastX = null;
     let text = "";
 
-    // Set tolerance values for positioning
-    const LINE_TOLERANCE = 3; // tolerance for lines
-    const WORD_TOLERANCE = 15; // tolerance for words on the same line (adjusted for M-PESA statement)
+    const LINE_TOLERANCE = 2;
+    const WORD_TOLERANCE = 8;
+    const LARGE_GAP_TOLERANCE = 40;
 
-    // Sort items by y position (top to bottom), then x position (left to right)
     const items = textContent.items
       .filter((item) => "str" in item && item.str.trim() !== "")
       .sort((a, b) => {
         if (!("transform" in a) || !("transform" in b)) return 0;
-        // Compare y position first (with a small tolerance)
         const yDiff = Math.abs(a.transform[5] - b.transform[5]);
         if (yDiff < LINE_TOLERANCE) {
           // Items on same line (within tolerance)
@@ -119,7 +95,6 @@ export class PdfService {
         return b.transform[5] - a.transform[5]; // Sort by y position (top to bottom)
       });
 
-    // Build text with proper line breaks
     for (const item of items) {
       if (!("str" in item) || !("transform" in item)) continue;
 
@@ -127,22 +102,22 @@ export class PdfService {
       const y = item.transform[5];
       const str = item.str;
 
-      // Add a new line when y position changes significantly
       if (lastY !== null && Math.abs(y - lastY) > LINE_TOLERANCE) {
         text += "\n";
-        lastX = null; // Reset lastX on new line
+        lastX = null;
       } else if (lastX !== null && lastY !== null) {
-        // Check if we need to add a space between words
-        // This handles the case where words are far apart horizontally
-        const xGap = x - (lastX + (item.width || 0));
-        if (xGap > WORD_TOLERANCE) {
+        const xGap = x - lastX;
+
+        if (xGap > LARGE_GAP_TOLERANCE) {
+          text += "   ";
+        } else if (xGap > WORD_TOLERANCE) {
           text += " ";
         } else if (
           text.length > 0 &&
           !text.endsWith(" ") &&
-          !text.endsWith("\n")
+          !text.endsWith("\n") &&
+          xGap > 0
         ) {
-          // Add space between items on the same line if needed and not too far apart
           text += " ";
         }
       }
@@ -152,8 +127,7 @@ export class PdfService {
       lastX = x + (item.width || 0);
     }
 
-    // Fix any double spaces
-    return text.replace(/\s{2,}/g, " ");
+    return text.replace(/[ \t]{5,}/g, "   ");
   }
 
   /**
@@ -163,29 +137,25 @@ export class PdfService {
   static parseTransactions(text: string): Transaction[] {
     const transactions: Transaction[] = [];
 
-    // Try multiple patterns to find the detailed statement section
     const detailedPatterns = [
       /DETAILED\s+STATEMENT[\s\S]*?(?:Receipt\s+No\.|Receipt\s*Number)/i,
-      /DETAILED\s+STATEMENT[\s\S]*?(?:[A-Z0-9]{10})/i, // M-PESA receipt numbers
-      /Receipt\s+No\s+Completion\s+Time\s+Details/i, // Table header pattern
-      /[A-Z0-9]{10}\s+\d{4}-\d{2}-\d{2}/i, // Direct receipt pattern
+      /DETAILED\s+STATEMENT[\s\S]*?(?:[A-Z0-9]{10})/i,
+      /Receipt\s+No\s+Completion\s+Time\s+Details/i,
+      /[A-Z0-9]{10}\s+\d{4}-\d{2}-\d{2}/i,
     ];
 
     let detailedSection = "";
     let sectionFound = false;
 
-    // Try each pattern to find the detailed section
     for (const pattern of detailedPatterns) {
       const match = text.match(pattern);
       if (match) {
         detailedSection = text.substring(match.index || 0);
         sectionFound = true;
-        console.log("Found detailed section using pattern:", pattern);
         break;
       }
     }
 
-    // If no detailed section found using patterns, try to find first transaction directly
     if (!sectionFound) {
       const firstTransactionMatch = text.match(
         /[A-Z0-9]{10}\s+\d{4}-\d{2}-\d{2}/i
@@ -193,23 +163,12 @@ export class PdfService {
       if (firstTransactionMatch) {
         detailedSection = text.substring(firstTransactionMatch.index || 0);
         sectionFound = true;
-        console.log("Found detailed section by locating first transaction");
       }
     }
 
     if (!sectionFound) {
-      console.warn("Could not find detailed statement section");
-      console.log("Text sample:", text.substring(0, 1000));
-      console.log(
-        "Looking for patterns like 'DETAILED STATEMENT' or receipt numbers..."
-      );
-
-      // Last resort: try to find any receipt numbers anywhere in the text
       const anyReceiptMatch = text.match(/[A-Z0-9]{10}/i);
       if (anyReceiptMatch) {
-        console.log(
-          "Found receipt pattern elsewhere, trying full text parsing"
-        );
         detailedSection = text;
         sectionFound = true;
       } else {
@@ -217,68 +176,61 @@ export class PdfService {
       }
     }
 
-    // Enhanced transaction parsing to handle different table formats
     let transactionBlocks = [];
 
-    // Method 1: Try parsing as traditional line-by-line format
-    const receiptPattern = /\n([A-Z0-9]{10})\s+\d{4}-\d{2}-\d{2}/g;
+    const receiptPattern =
+      /(?:^|\n)([A-Z0-9]{10})\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/gm;
     let match;
-    let lastIndex = 0;
+    const receiptPositions = [];
 
-    // Find all receipt numbers and their positions
     while ((match = receiptPattern.exec(detailedSection)) !== null) {
-      if (lastIndex > 0) {
-        // Add the previous block
-        const blockContent = detailedSection.substring(lastIndex, match.index);
-        if (blockContent.trim()) {
-          transactionBlocks.push(blockContent);
-        }
-      }
-      lastIndex = match.index + 1; // +1 to keep the newline
+      receiptPositions.push({
+        receiptNo: match[1],
+        datetime: match[2],
+        startIndex: match.index,
+        fullMatch: match[0],
+      });
     }
 
-    // Add the last block if any
-    if (lastIndex > 0 && lastIndex < detailedSection.length) {
-      const blockContent = detailedSection.substring(lastIndex);
-      if (blockContent.trim() && !blockContent.includes("Disclaimer:")) {
+    for (let i = 0; i < receiptPositions.length; i++) {
+      const current = receiptPositions[i];
+      const next = receiptPositions[i + 1];
+
+      const startIndex = current.startIndex;
+      const endIndex = next ? next.startIndex : detailedSection.length;
+
+      const blockContent = detailedSection
+        .substring(startIndex, endIndex)
+        .trim();
+
+      if (blockContent && !blockContent.includes("Disclaimer:")) {
         transactionBlocks.push(blockContent);
       }
     }
 
-    // Method 2: If no blocks found, try parsing as table format
     if (transactionBlocks.length === 0) {
-      console.warn("Trying table-based parsing");
-
-      // Split by lines and look for receipt patterns
       const lines = detailedSection.split("\n");
       let currentTransaction = "";
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
 
-        // Check if line starts with a receipt number
         if (/^[A-Z0-9]{10}\s+\d{4}-\d{2}-\d{2}/.test(line)) {
-          // Save previous transaction if exists
           if (currentTransaction.trim()) {
             transactionBlocks.push(currentTransaction.trim());
           }
-          // Start new transaction
           currentTransaction = line;
         } else if (currentTransaction && line) {
-          // Continue building current transaction
           currentTransaction += "\n" + line;
         }
       }
 
-      // Add the last transaction
       if (currentTransaction.trim()) {
         transactionBlocks.push(currentTransaction.trim());
       }
     }
 
-    // Method 3: If still no blocks, try splitting by receipt pattern without line boundaries
     if (transactionBlocks.length === 0) {
-      console.warn("Falling back to simple receipt pattern splitting");
       const rows = detailedSection.split(
         /(?=[A-Z0-9]{10}\s+\d{4}-\d{2}-\d{2})/
       );
@@ -287,9 +239,7 @@ export class PdfService {
       );
     }
 
-    // Process each transaction block
     for (const block of transactionBlocks) {
-      // Extract receipt number - 10-character alphanumeric string (always uppercase)
       const receiptMatch = block.match(/([A-Z0-9]{10})/);
       if (!receiptMatch) {
         continue;
@@ -297,92 +247,86 @@ export class PdfService {
 
       const receiptNo = receiptMatch[1].trim();
 
-      // Extract completion time - handle both formats
       const timeMatch = block.match(/\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}/);
       const completionTime = timeMatch ? timeMatch[0].trim() : "";
 
-      // Extract transaction status - be more flexible
-      const statusMatch = block.match(
-        /\b(COMPLETED|FAILED|PENDING|Completed|Failed|Pending)\b/i
-      );
-      const status = statusMatch ? statusMatch[0].trim() : "Unknown";
+      const statusPattern =
+        /\b(COMPLETED|FAILED|PENDING|Completed|Failed|Pending)\b/gi;
+      let statusMatch;
+      let lastStatusMatch = null;
 
-      // Extract details - using the more robust multiline pattern
+      while ((statusMatch = statusPattern.exec(block)) !== null) {
+        lastStatusMatch = statusMatch;
+      }
+
+      const status = lastStatusMatch ? lastStatusMatch[0].trim() : "Unknown";
+
       let details = "";
-      if (timeMatch && statusMatch) {
+      if (timeMatch) {
         const timeIndex = block.indexOf(timeMatch[0]) + timeMatch[0].length;
-        const statusIndex = block.indexOf(statusMatch[0], timeIndex);
 
-        if (statusIndex > timeIndex) {
-          // Extract everything between time and status
-          details = block.substring(timeIndex, statusIndex).trim();
+        const amountPattern =
+          /\d+,?\d*\.\d{2}\s+\d+,?\d*\.\d{2}\s+\d+,?\d*\.\d{2}/;
+        const amountMatch = block.match(amountPattern);
 
-          // Handle some common M-PESA transaction types more explicitly
-          // Business Payment from Equity Bank
-          if (
-            details.includes("Business Payment from") &&
-            details.includes("Equity Bulk Account via API")
-          ) {
-            const fullDetails = details.replace(/\s+/g, " ").trim();
-            // Extract the conversation ID if present
-            const conversationIdMatch = block.match(
-              /conversation\s+ID\s+is\s+([A-Z0-9]+)/i
-            );
-            if (conversationIdMatch) {
-              details = `${fullDetails} - Conversation ID: ${conversationIdMatch[1]}`;
-            } else {
-              details = fullDetails;
-            }
-          }
-          // Customer Transfer handling
-          else if (details.includes("Customer Transfer")) {
-            // Try to extract the recipient info that often appears on a different line
-            const transferToMatch = block.match(
-              /Customer\s+Transfer\s+(?:to|-)?\s+([^\n]+)/i
-            );
-            if (transferToMatch) {
-              details =
-                `Customer Transfer to ${transferToMatch[1].trim()}`.replace(
-                  /\s+/g,
-                  " "
-                );
-            } else {
-              details = details.replace(/\s+/g, " ").trim();
-            }
-          }
-          // Merchant Payment Online handling
-          else if (details.includes("Merchant Payment Online to")) {
-            // Some merchant payments have additional details like store names
-            const merchantMatch = block.match(
-              /Merchant\s+Payment\s+Online\s+to\s+([^\n]+)/i
-            );
-            if (merchantMatch) {
-              details = merchantMatch[1].replace(/\s+/g, " ").trim();
+        if (amountMatch) {
+          const amountStartIndex = block.indexOf(amountMatch[0]);
+          const amountEndIndex = amountStartIndex + amountMatch[0].length;
 
-              // Try to find additional merchant info like store name
-              const storeMatch = block.match(
-                /([A-Z\s]+(?:\s+[A-Z]+)+)\s+([^\s]+)/i
-              );
-              if (storeMatch) {
-                details = `${details} - ${storeMatch[0].trim()}`;
-              }
-            } else {
-              details = details.replace(/\s+/g, " ").trim();
-            }
+          const basicDetails = block
+            .substring(timeIndex, amountStartIndex)
+            .trim()
+            .replace(/\b(COMPLETED|FAILED|PENDING)\b/gi, "")
+            .trim();
+
+          const additionalDetails = block
+            .substring(amountEndIndex)
+            .trim()
+            .replace(/\b(COMPLETED|FAILED|PENDING)\b/gi, "")
+            .trim();
+
+          if (basicDetails && additionalDetails) {
+            details = `${basicDetails}\n${additionalDetails}`;
+          } else if (basicDetails) {
+            details = basicDetails;
+          } else if (additionalDetails) {
+            details = additionalDetails;
           }
-          // Default case - just clean up whitespace
-          else {
-            details = details.replace(/\s+/g, " ").trim();
-          }
+        } else {
+          details = block
+            .substring(timeIndex)
+            .trim()
+            .replace(/\b(COMPLETED|FAILED|PENDING)\b/gi, "")
+            .trim();
         }
       }
 
-      // Enhanced amount extraction to handle table format
+      if (!details.trim()) {
+        details = this.extractDetailsFromBlock(
+          block,
+          receiptNo,
+          completionTime,
+          status
+        );
+      }
+
+      if (details.trim().length < 20) {
+        const alternativeDetails = this.extractDetailsAlternative(
+          block,
+          receiptNo,
+          completionTime
+        );
+        if (alternativeDetails.length > details.length) {
+          details = alternativeDetails;
+        }
+      }
+
+      details = details.replace(/[ \t]+/g, " ").replace(/\n[ \t]*/g, "\n");
+
       let paidIn = null;
       let withdrawn = null;
       let balance = null;
 
-      // Method 1: Try to extract from column headers (old format)
       const paidInPattern = /Paid\s+In\s+[-]?([\d,]+\.\d{2})/i;
       const withdrawnPattern = /Withdrawn\s+[-]?([\d,]+\.\d{2})/i;
       const balancePattern = /Balance\s+[-]?([\d,]+\.\d{2})/i;
@@ -403,9 +347,7 @@ export class PdfService {
         balance = this.parseAmount(balanceMatch[1]);
       }
 
-      // Method 2: For new table format, extract amounts by position
       if (!paidIn && !withdrawn && !balance) {
-        // Extract all amounts from the transaction block
         const amountPattern = /([\d,]+\.\d{2})/g;
         const amounts = [];
         let amountMatch;
@@ -414,16 +356,11 @@ export class PdfService {
           amounts.push(amountMatch[1]);
         }
 
-        // In the new format, amounts are typically in order: Paid In, Withdrawn, Balance
-        // But we need to be smart about which is which
         if (amounts.length >= 3) {
-          // Try to determine based on transaction type and amounts
           const parsedAmounts = amounts.map((amt) => this.parseAmount(amt));
 
-          // Last amount is usually balance
           balance = parsedAmounts[parsedAmounts.length - 1];
 
-          // Check if this looks like a money-in transaction
           if (
             details.toLowerCase().includes("business payment from") ||
             details.toLowerCase().includes("received") ||
@@ -435,15 +372,13 @@ export class PdfService {
               withdrawn =
                 parsedAmounts[1] === balance ? null : parsedAmounts[1];
             }
-          } else {
-            // Likely a money-out transaction
-            withdrawn = parsedAmounts[0];
+            } else {
+              withdrawn = parsedAmounts[0];
             if (parsedAmounts.length > 2) {
               paidIn = parsedAmounts[1] === balance ? null : parsedAmounts[1];
             }
           }
         } else if (amounts.length === 2) {
-          // One amount + balance
           balance = this.parseAmount(amounts[1]);
           const firstAmount = this.parseAmount(amounts[0]);
 
@@ -460,10 +395,7 @@ export class PdfService {
         }
       }
 
-      // Method 3: Final fallback for edge cases
       if (!paidIn && !withdrawn && !balance) {
-        console.log("Using final fallback amount extraction");
-        // Find all amounts in the block including negative ones
         const amountPattern = /[-]?([\d,]+\.\d{2})/g;
         let amounts = [];
         let amountMatch;
@@ -472,9 +404,6 @@ export class PdfService {
           amounts.push(amountMatch[0]);
         }
 
-        console.log("Found amounts:", amounts);
-
-        // Last amount is typically the balance
         if (amounts.length >= 1) {
           balance = this.parseAmount(amounts[amounts.length - 1]);
 
@@ -483,7 +412,6 @@ export class PdfService {
               amounts[amounts.length - 2]
             );
 
-            // Determine if it's paid in or withdrawn based on transaction details
             if (
               details.toLowerCase().includes("business payment from") ||
               details.toLowerCase().includes("funds received") ||
@@ -498,7 +426,6 @@ export class PdfService {
         }
       }
 
-      // Create the transaction object
       const transaction: Transaction = {
         receiptNo,
         completionTime,
@@ -506,20 +433,85 @@ export class PdfService {
         transactionStatus: status,
         paidIn,
         withdrawn,
-        balance: balance || 0, // Balance should always have a value
+        balance: balance || 0,
         raw: block.trim(),
       };
 
       transactions.push(transaction);
     }
 
-    console.log(`Successfully parsed ${transactions.length} transactions`);
-
     return transactions.sort((a, b) => {
       const dateA = new Date(a.completionTime);
       const dateB = new Date(b.completionTime);
       return dateA.getTime() - dateB.getTime();
     });
+  }
+
+  /**
+   * Alternative details extraction method that's more aggressive
+   */
+  private static extractDetailsAlternative(
+    block: string,
+    receiptNo: string,
+    completionTime: string
+  ): string {
+    const lines = block
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    let timeLineIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes(completionTime)) {
+        timeLineIndex = i;
+        break;
+      }
+    }
+
+    if (timeLineIndex === -1) return "";
+
+    const detailLines = [];
+    for (let i = timeLineIndex + 1; i < lines.length; i++) {
+      const line = lines[i];
+
+      if (
+        /^\d+\.\d{2}$/.test(line) ||
+        /^(COMPLETED|FAILED|PENDING)$/i.test(line) ||
+        line.includes(receiptNo)
+      ) {
+        break;
+      }
+
+      if (!/^\d+\.\d{2}$/.test(line)) {
+        detailLines.push(line);
+      }
+    }
+
+    return detailLines.join(" ").trim();
+  }
+
+  /**
+   * Extract details from block using alternative methods when primary extraction fails
+   */
+  private static extractDetailsFromBlock(
+    block: string,
+    receiptNo: string,
+    completionTime: string,
+    status: string
+  ): string {
+    let cleanBlock = block
+      .replace(new RegExp(receiptNo, "g"), "")
+      .replace(new RegExp(completionTime, "g"), "")
+      .replace(new RegExp(status, "gi"), "");
+
+    cleanBlock = cleanBlock.replace(/\d+\.\d{2}/g, "");
+
+    const lines = cleanBlock
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    return lines.join(" ").replace(/\s+/g, " ").trim();
   }
 
   /**
@@ -533,10 +525,8 @@ export class PdfService {
     try {
       const cleanedStr = amountStr.replace(/[^\d.-]/g, "");
 
-      // Handle special case where there might be multiple decimal points
       const parts = cleanedStr.split(".");
       if (parts.length > 2) {
-        // If there are multiple decimal points, keep only the first one
         const integerPart = parts[0];
         const decimalPart = parts.slice(1).join("");
         return parseFloat(`${integerPart}.${decimalPart}`);
@@ -544,7 +534,6 @@ export class PdfService {
 
       return parseFloat(cleanedStr);
     } catch (error) {
-      console.error("Error parsing amount:", amountStr, error);
       return 0;
     }
   }

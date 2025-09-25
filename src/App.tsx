@@ -9,6 +9,7 @@ import { PdfService } from "./services/pdfService";
 import { ExportService } from "./services/exportService";
 import FileUploader from "./components/file-uploader";
 import PasswordPrompt from "./components/password-prompt";
+import { UpdateChecker } from "./components/update-checker";
 import { Download, RotateCcw } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import dayjs from "dayjs";
@@ -34,13 +35,29 @@ function App() {
   );
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     includeChargesSheet: false,
+    includeSummarySheet: false,
   });
   const [currentFileIndex, setCurrentFileIndex] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [appVersion, setAppVersion] = useState<string>("");
 
   const formatDateForFilename = (): string => {
     return dayjs().format("YYYY-MM-DD_HH-mm-ss");
   };
+
+  // Get app version on component mount
+  useEffect(() => {
+    const getVersion = async () => {
+      try {
+        const version = await invoke<string>("get_app_version");
+        setAppVersion(version);
+      } catch (error) {
+        console.error("Failed to get app version:", error);
+        setAppVersion("unknown");
+      }
+    };
+    getVersion();
+  }, []);
 
   const handleFilesSelected = async (selectedFiles: File[]) => {
     setFiles(selectedFiles);
@@ -274,6 +291,8 @@ function App() {
 
   return (
     <div className="min-h-screen max-h-screen  flex flex-col overflow-hidden">
+      {/* Auto-check for updates on app start */}
+      <UpdateChecker autoCheck={true} />
       <div className="flex-1 mx-auto px-4 py-4 flex flex-col max-w-4xl w-full">
         <main className="flex-1 flex items-center justify-center">
           <div className="w-full max-w-2xl transition-all duration-300 ease-in-out">
@@ -305,7 +324,7 @@ function App() {
             ) : status === FileStatus.PROCESSING ? (
               <div className="rounded-lg shadow-sm p-6 text-center flex flex-col items-center justify-center transition-all duration-300 min-h-[300px]">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-foreground">
+                <p className="text-center">
                   Processing file {currentFileIndex + 1} of {files.length}...
                 </p>
                 {files[currentFileIndex] && (
@@ -372,37 +391,70 @@ function App() {
                     <label className="block text-sm font-medium mb-2">
                       Additional Sheets
                     </label>
-                    <div className="space-y-2">
-                      <label className="flex items-center space-x-2">
-                        <Checkbox
-                          checked={exportOptions.includeChargesSheet}
-                          onCheckedChange={(value) => {
-                            const newOptions = {
-                              ...exportOptions,
-                              includeChargesSheet: Boolean(value),
-                            };
-                            setExportOptions(newOptions);
+                    <div className="space-y-3">
+                      <div>
+                        <label className="flex items-center space-x-2">
+                          <Checkbox
+                            checked={exportOptions.includeChargesSheet}
+                            onCheckedChange={(value) => {
+                              const newOptions = {
+                                ...exportOptions,
+                                includeChargesSheet: Boolean(value),
+                              };
+                              setExportOptions(newOptions);
 
-                            // Regenerate download link with new options
-                            const combinedStatement = statements[0];
-                            ExportService.createDownloadLink(
-                              combinedStatement,
-                              exportFormat,
-                              newOptions
-                            )
-                              .then(setExportLink)
-                              .catch(() => setExportLink(""));
-                          }}
-                          className="rounded border-gray-300 text-primary focus:ring-primary"
-                        />
-                        <span className="text-sm">
-                          Include Charges/Fees Sheet
-                        </span>
-                      </label>
-                      <p className="text-xs text-muted-foreground ml-6">
-                        Creates a separate sheet with all transaction charges
-                        and fees
-                      </p>
+                              const combinedStatement = statements[0];
+                              ExportService.createDownloadLink(
+                                combinedStatement,
+                                exportFormat,
+                                newOptions
+                              )
+                                .then(setExportLink)
+                                .catch(() => setExportLink(""));
+                            }}
+                            className="rounded border-gray-300 text-primary focus:ring-primary"
+                          />
+                          <span className="text-sm">
+                            Include Charges/Fees Sheet
+                          </span>
+                        </label>
+                        <p className="text-xs text-muted-foreground ml-6">
+                          Creates a separate sheet with all transaction charges
+                          and fees
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="flex items-center space-x-2">
+                          <Checkbox
+                            checked={exportOptions.includeSummarySheet}
+                            onCheckedChange={(value) => {
+                              const newOptions = {
+                                ...exportOptions,
+                                includeSummarySheet: Boolean(value),
+                              };
+                              setExportOptions(newOptions);
+
+                              const combinedStatement = statements[0];
+                              ExportService.createDownloadLink(
+                                combinedStatement,
+                                exportFormat,
+                                newOptions
+                              )
+                                .then(setExportLink)
+                                .catch(() => setExportLink(""));
+                            }}
+                            className="rounded border-gray-300 text-primary focus:ring-primary"
+                          />
+                          <span className="text-sm">
+                            Include Financial Summary Sheet
+                          </span>
+                        </label>
+                        <p className="text-xs text-muted-foreground ml-6">
+                          Creates a comprehensive financial analysis with cash
+                          flow, spending patterns, and insights
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -450,17 +502,25 @@ function App() {
         </main>
 
         <footer className="flex-shrink-0 text-center text-xs border-t py-3 mt-0">
-          <p>
-            Built by{" "}
-            <a
-              href="https://twitter.com/davidamunga_"
-              className="text-green-500 hover:text-green-500/80 font-medium transition-colors"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              @davidamunga
-            </a>
-          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p>
+              Built by{" "}
+              <a
+                href="https://twitter.com/davidamunga_"
+                className="text-green-500 hover:text-green-500/80 font-medium transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                @davidamunga
+              </a>
+            </p>
+            <div className="flex items-center gap-3">
+              {appVersion && (
+                <span className="">v{appVersion}</span>
+              )}
+              <UpdateChecker showButton={true} />
+            </div>
+          </div>
         </footer>
       </div>
     </div>

@@ -9,6 +9,10 @@
     "core:webview:allow-webview-position",
     "core:webview:allow-webview-size",
     "fs:allow-read-file",
-    "fs:default"
+    "fs:default",
+    "updater:default",
+    "updater:allow-check",
+    "process:default",
+    "process:allow-restart"
   ]
 }
