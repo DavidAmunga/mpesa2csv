@@ -1,5 +1,16 @@
 # mpesa2csv
 
+## 0.2.0
+
+### Minor Changes
+
+- 3b58f9c: feat: added financial summary export
+
+### Patch Changes
+
+- df51aea: fix: reorder columns and update total charges display in xlsx charges sheet export
+- 3b58f9c: fix: refine statement processing
+
 ## 0.1.0
 
 ### Minor Changes
