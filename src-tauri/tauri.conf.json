@@ -12,9 +12,9 @@
   "app": {
     "windows": [
       {
-        "title": "mpesa2csv - Convert M-PESA Statements to CSV",
+        "title": "mpesa2csv - Convert M-PESA Statements to CSV/Excel",
         "width": 600,
-        "height": 450,
+        "height": 500,
         "minWidth": 500,
         "minHeight": 400,
         "resizable": true
@@ -36,8 +36,8 @@
     ],
     "publisher": "David Amunga",
     "category": "Utility",
-    "shortDescription": "Convert M-PESA statements to CSV",
-    "longDescription": "A desktop application that converts M-PESA statement PDFs to CSV format. Process your statements locally with complete privacy.",
+    "shortDescription": "Convert M-PESA statements to CSV/Excel",
+    "longDescription": "A desktop application that converts M-PESA statement PDFs to CSV/Excel files. Process your statements locally with complete privacy.",
     "copyright": "Copyright © 2025 David Amunga. All rights reserved.",
     "licenseFile": "../LICENSE",
     "externalBin": [],
@@ -64,7 +64,7 @@
         },
         "windowSize": {
           "width": 660,
-          "height": 400
+          "height": 500
         }
       }
     },

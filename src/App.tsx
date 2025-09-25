@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { MPesaStatement, FileStatus, ExportFormat } from "./types";
+import {
+  MPesaStatement,
+  FileStatus,
+  ExportFormat,
+  ExportOptions,
+} from "./types";
 import { PdfService } from "./services/pdfService";
 import { ExportService } from "./services/exportService";
 import FileUploader from "./components/file-uploader";
@@ -15,6 +20,7 @@ import {
   SelectValue,
 } from "./components/ui/select";
 import { Button } from "./components/ui/button";
+import { Checkbox } from "./components/ui/checkbox";
 
 function App() {
   const [files, setFiles] = useState<File[]>([]);
@@ -26,6 +32,9 @@ function App() {
   const [exportFormat, setExportFormat] = useState<ExportFormat>(
     ExportFormat.XLSX
   );
+  const [exportOptions, setExportOptions] = useState<ExportOptions>({
+    includeChargesSheet: false,
+  });
   const [currentFileIndex, setCurrentFileIndex] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
@@ -119,7 +128,11 @@ function App() {
       );
 
       // Generate download link asynchronously
-      ExportService.createDownloadLink(combinedStatement, exportFormat)
+      ExportService.createDownloadLink(
+        combinedStatement,
+        exportFormat,
+        exportOptions
+      )
         .then(setExportLink)
         .catch(() => setExportLink(""));
       setExportFileName(fileName);
@@ -183,7 +196,11 @@ function App() {
           formatDateForFilename()
         );
 
-        ExportService.createDownloadLink(combinedStatement, exportFormat)
+        ExportService.createDownloadLink(
+          combinedStatement,
+          exportFormat,
+          exportOptions
+        )
           .then(setExportLink)
           .catch(() => setExportLink(""));
         setExportFileName(fileName);
@@ -221,7 +238,8 @@ function App() {
 
       const arrayBuffer = await ExportService.getFileBuffer(
         combinedStatement,
-        exportFormat
+        exportFormat,
+        exportOptions
       );
       const content = new Uint8Array(arrayBuffer);
 
@@ -324,7 +342,11 @@ function App() {
                         formatDateForFilename()
                       );
 
-                      ExportService.createDownloadLink(combinedStatement, value)
+                      ExportService.createDownloadLink(
+                        combinedStatement,
+                        value,
+                        exportOptions
+                      )
                         .then(setExportLink)
                         .catch(() => setExportLink(""));
                       setExportFileName(fileName);
@@ -344,6 +366,46 @@ function App() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {exportFormat === ExportFormat.XLSX && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-2">
+                      Additional Sheets
+                    </label>
+                    <div className="space-y-2">
+                      <label className="flex items-center space-x-2">
+                        <Checkbox
+                          checked={exportOptions.includeChargesSheet}
+                          onCheckedChange={(value) => {
+                            const newOptions = {
+                              ...exportOptions,
+                              includeChargesSheet: Boolean(value),
+                            };
+                            setExportOptions(newOptions);
+
+                            // Regenerate download link with new options
+                            const combinedStatement = statements[0];
+                            ExportService.createDownloadLink(
+                              combinedStatement,
+                              exportFormat,
+                              newOptions
+                            )
+                              .then(setExportLink)
+                              .catch(() => setExportLink(""));
+                          }}
+                          className="rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <span className="text-sm">
+                          Include Charges/Fees Sheet
+                        </span>
+                      </label>
+                      <p className="text-xs text-muted-foreground ml-6">
+                        Creates a separate sheet with all transaction charges
+                        and fees
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row gap-3 justify-center mb-5">
                   <Button
@@ -378,7 +440,7 @@ function App() {
                 </div>
 
                 <div className="pt-3 border-t border-border">
-                  <p className="text-xs text-muted-foreground text-center truncate">
+                  <p className="text-xs  text-center truncate">
                     File: {exportFileName}
                   </p>
                 </div>
@@ -387,7 +449,7 @@ function App() {
           </div>
         </main>
 
-        <footer className="flex-shrink-0 text-center text-xs  border-t border-border py-3 mt-4">
+        <footer className="flex-shrink-0 text-center text-xs border-t py-3 mt-0">
           <p>
             Built by{" "}
             <a

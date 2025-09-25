@@ -166,7 +166,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         >
           {dragActive
             ? "Drop your PDF files here!"
-            : "Convert M-PESA PDF's to CSV"}
+            : "Convert M-PESA PDF's to CSV/Excel"}
         </h3>
 
         <p
@@ -177,7 +177,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         >
           {dragActive
             ? "Release to upload your M-PESA statement PDFs"
-            : "Convert your PDF statements to CSV format instantly. Drag & drop multiple files or click below to get started."}
+            : "Convert your PDF statements to CSV/Excel files instantly. Drag & drop multiple files or click below to get started."}
         </p>
 
         {!dragActive && (
