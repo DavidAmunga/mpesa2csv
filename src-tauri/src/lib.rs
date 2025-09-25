@@ -36,6 +36,11 @@ async fn save_csv_file(
 }
 
 #[tauri::command]
+fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[tauri::command]
 async fn save_file(
     app: tauri::AppHandle,
     content: Vec<u8>,
@@ -79,8 +84,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![greet, save_csv_file, save_file])
+        .invoke_handler(tauri::generate_handler![greet, save_csv_file, save_file, get_app_version])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
