@@ -110,7 +110,6 @@ export class XlsxService {
       { header: "Date", key: "date", width: 12 },
       { header: "Time", key: "time", width: 10 },
       { header: "Amount", key: "amount", width: 12 },
-      { header: "Balance After", key: "balance", width: 15 },
       { header: "Full Details", key: "fullDetails", width: 40 },
     ];
 
@@ -132,7 +131,6 @@ export class XlsxService {
         receiptNo: transaction.receiptNo,
         date: transaction.completionTime,
         amount: amount,
-        balance: transaction.balance,
         fullDetails: transaction.details,
       });
     });
