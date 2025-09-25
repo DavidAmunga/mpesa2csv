@@ -1,17 +1,18 @@
-import { MPesaStatement, ExportFormat } from "../types";
+import { MPesaStatement, ExportFormat, ExportOptions } from "../types";
 import { CsvService } from "./csvService";
 import { XlsxService } from "./xlsxService";
 
 export class ExportService {
   static async createDownloadLink(
     statement: MPesaStatement,
-    format: ExportFormat
+    format: ExportFormat,
+    options?: ExportOptions
   ): Promise<string> {
     switch (format) {
       case ExportFormat.CSV:
         return CsvService.createDownloadLink(statement);
       case ExportFormat.XLSX:
-        return await XlsxService.createDownloadLink(statement);
+        return await XlsxService.createDownloadLink(statement, options);
       default:
         throw new Error(`Unsupported export format: ${format}`);
     }
@@ -60,7 +61,8 @@ export class ExportService {
 
   static async getFileBuffer(
     statement: MPesaStatement,
-    format: ExportFormat
+    format: ExportFormat,
+    options?: ExportOptions
   ): Promise<ArrayBuffer> {
     switch (format) {
       case ExportFormat.CSV:
@@ -69,7 +71,7 @@ export class ExportService {
         const csvWithBOM = BOM + csvContent;
         return new TextEncoder().encode(csvWithBOM).buffer;
       case ExportFormat.XLSX:
-        return await XlsxService.convertStatementToXlsx(statement);
+        return await XlsxService.convertStatementToXlsx(statement, options);
       default:
         throw new Error(`Unsupported export format: ${format}`);
     }

@@ -27,3 +27,7 @@ export enum ExportFormat {
   CSV = "csv",
   XLSX = "xlsx",
 }
+
+export interface ExportOptions {
+  includeChargesSheet?: boolean;
+}

@@ -14,7 +14,7 @@
       {
         "title": "mpesa2csv - Convert M-PESA Statements to CSV",
         "width": 600,
-        "height": 450,
+        "height": 500,
         "minWidth": 500,
         "minHeight": 400,
         "resizable": true
