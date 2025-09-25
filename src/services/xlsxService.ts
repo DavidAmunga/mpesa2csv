@@ -108,9 +108,8 @@ export class XlsxService {
     chargesWorksheet.columns = [
       { header: "Receipt No", key: "receiptNo", width: 12 },
       { header: "Date", key: "date", width: 12 },
-      { header: "Time", key: "time", width: 10 },
-      { header: "Amount", key: "amount", width: 12 },
       { header: "Full Details", key: "fullDetails", width: 40 },
+      { header: "Amount", key: "amount", width: 12 },
     ];
 
     // Style the header row
@@ -130,8 +129,8 @@ export class XlsxService {
       chargesWorksheet.addRow({
         receiptNo: transaction.receiptNo,
         date: transaction.completionTime,
-        amount: amount,
         fullDetails: transaction.details,
+        amount: amount,
       });
     });
 
@@ -160,9 +159,9 @@ export class XlsxService {
 
     chargesWorksheet.getCell(`A${summaryStartRow}`).value = "Total Charges:";
     chargesWorksheet.getCell(`A${summaryStartRow}`).font = { bold: true };
-    chargesWorksheet.getCell(`E${summaryStartRow}`).value = totalCharges;
-    chargesWorksheet.getCell(`E${summaryStartRow}`).font = { bold: true };
-    chargesWorksheet.getCell(`E${summaryStartRow}`).fill = {
+    chargesWorksheet.getCell(`D${summaryStartRow}`).value = totalCharges;
+    chargesWorksheet.getCell(`D${summaryStartRow}`).font = { bold: true };
+    chargesWorksheet.getCell(`D${summaryStartRow}`).fill = {
       type: "pattern",
       pattern: "solid",
       fgColor: { argb: "FFFFE4B5" },
@@ -171,9 +170,9 @@ export class XlsxService {
     chargesWorksheet.getCell(`A${summaryStartRow + 1}`).value =
       "Number of Charge Transactions:";
     chargesWorksheet.getCell(`A${summaryStartRow + 1}`).font = { bold: true };
-    chargesWorksheet.getCell(`E${summaryStartRow + 1}`).value =
+    chargesWorksheet.getCell(`D${summaryStartRow + 1}`).value =
       chargeTransactions.length;
-    chargesWorksheet.getCell(`E${summaryStartRow + 1}`).font = { bold: true };
+    chargesWorksheet.getCell(`D${summaryStartRow + 1}`).font = { bold: true };
   }
 
   static getFileName(statement: MPesaStatement, timestamp?: string): string {
