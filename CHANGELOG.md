@@ -1,5 +1,12 @@
 # mpesa2csv
 
+## 0.3.0
+
+### Minor Changes
+
+- 43a16f2: feat: add daily balance tracker sheet
+- 43a16f2: feat: add monthly & weekly breakdown sheet
+
 ## 0.2.0
 
 ### Minor Changes
