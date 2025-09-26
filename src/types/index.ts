@@ -31,4 +31,6 @@ export enum ExportFormat {
 export interface ExportOptions {
   includeChargesSheet?: boolean;
   includeSummarySheet?: boolean;
+  includeBreakdownSheet?: boolean;
+  includeDailyBalanceSheet?: boolean;
 }

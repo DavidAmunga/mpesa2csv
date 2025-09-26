@@ -36,6 +36,8 @@ function App() {
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     includeChargesSheet: false,
     includeSummarySheet: false,
+    includeBreakdownSheet: false,
+    includeDailyBalanceSheet: false,
   });
   const [currentFileIndex, setCurrentFileIndex] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
@@ -270,6 +272,7 @@ function App() {
 
       setError(undefined);
     } catch (error: any) {
+      console.log(error);
       if (error.includes("cancelled")) {
         setError(undefined);
       } else {
@@ -455,6 +458,72 @@ function App() {
                           flow, spending patterns, and insights
                         </p>
                       </div>
+
+                      <div>
+                        <label className="flex items-center space-x-2">
+                          <Checkbox
+                            checked={exportOptions.includeBreakdownSheet}
+                            onCheckedChange={(value) => {
+                              const newOptions = {
+                                ...exportOptions,
+                                includeBreakdownSheet: Boolean(value),
+                              };
+                              setExportOptions(newOptions);
+
+                              const combinedStatement = statements[0];
+                              ExportService.createDownloadLink(
+                                combinedStatement,
+                                exportFormat,
+                                newOptions
+                              )
+                                .then(setExportLink)
+                                .catch(() => setExportLink(""));
+                            }}
+                            className="rounded border-gray-300 text-primary focus:ring-primary"
+                          />
+                          <span className="text-sm">
+                            Include Monthly & Weekly Breakdown Sheet
+                          </span>
+                        </label>
+                        <p className="text-xs text-muted-foreground ml-6">
+                          Creates a pivot-like table with monthly and weekly
+                          aggregations showing inflows, outflows, net change,
+                          and average transaction size
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="flex items-center space-x-2">
+                          <Checkbox
+                            checked={exportOptions.includeDailyBalanceSheet}
+                            onCheckedChange={(value) => {
+                              const newOptions = {
+                                ...exportOptions,
+                                includeDailyBalanceSheet: Boolean(value),
+                              };
+                              setExportOptions(newOptions);
+
+                              const combinedStatement = statements[0];
+                              ExportService.createDownloadLink(
+                                combinedStatement,
+                                exportFormat,
+                                newOptions
+                              )
+                                .then(setExportLink)
+                                .catch(() => setExportLink(""));
+                            }}
+                            className="rounded border-gray-300 text-primary focus:ring-primary"
+                          />
+                          <span className="text-sm">
+                            Include Daily Balance Tracker Sheet
+                          </span>
+                        </label>
+                        <p className="text-xs text-muted-foreground ml-6">
+                          Creates a day-by-day balance tracker showing your
+                          highest and lowest balances with spending pattern
+                          insights
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -515,9 +584,7 @@ function App() {
               </a>
             </p>
             <div className="flex items-center gap-3">
-              {appVersion && (
-                <span className="">v{appVersion}</span>
-              )}
+              {appVersion && <span className="">v{appVersion}</span>}
               <UpdateChecker showButton={true} />
             </div>
           </div>
