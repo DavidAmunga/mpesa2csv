@@ -1,5 +1,15 @@
 # mpesa2csv
 
+## 0.4.0
+
+### Minor Changes
+
+- 3ae00d9: feat: Add Transaction Amount Distribution Sheet
+
+### Patch Changes
+
+- 3ae00d9: fix: reset/skip options after upload
+
 ## 0.3.0
 
 ### Minor Changes
