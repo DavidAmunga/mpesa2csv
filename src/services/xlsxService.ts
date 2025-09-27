@@ -5,6 +5,7 @@ import {
   addFinancialSummarySheet,
   addMonthlyWeeklyBreakdownSheet,
   addDailyBalanceTrackerSheet,
+  addTransactionAmountDistributionSheet,
 } from "./exports";
 
 export class XlsxService {
@@ -92,6 +93,11 @@ export class XlsxService {
     // Add Daily Balance Tracker sheet if requested
     if (options?.includeDailyBalanceSheet) {
       addDailyBalanceTrackerSheet(workbook, statement);
+    }
+
+    // Add Transaction Amount Distribution sheet if requested
+    if (options?.includeAmountDistributionSheet) {
+      addTransactionAmountDistributionSheet(workbook, statement);
     }
 
     const buffer = await workbook.xlsx.writeBuffer();

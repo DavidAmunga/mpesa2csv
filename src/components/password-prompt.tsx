@@ -7,6 +7,8 @@ import { Button } from "./ui/button";
 
 interface PasswordPromptProps {
   onPasswordSubmit: (password: string) => void;
+  onSkip?: () => void;
+  onReset?: () => void;
   status: FileStatus;
   error?: string;
   currentFileName?: string;
@@ -16,6 +18,8 @@ interface PasswordPromptProps {
 
 const PasswordPrompt: React.FC<PasswordPromptProps> = ({
   onPasswordSubmit,
+  onSkip,
+  onReset,
   status,
   error,
   currentFileName,
@@ -87,6 +91,34 @@ const PasswordPrompt: React.FC<PasswordPromptProps> = ({
               "Unlock PDF"
             )}
           </Button>
+
+          {/* Skip and Reset buttons */}
+          <div className="flex gap-2 mt-3">
+            {onSkip && (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="flex-1 text-foreground"
+                onClick={onSkip}
+                disabled={status === FileStatus.PROCESSING}
+              >
+                Skip File
+              </Button>
+            )}
+            {onReset && (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="flex-1 text-foreground"
+                onClick={onReset}
+                disabled={status === FileStatus.PROCESSING}
+              >
+                Restart
+              </Button>
+            )}
+          </div>
         </div>
       </form>
 

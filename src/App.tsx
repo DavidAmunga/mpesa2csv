@@ -3,25 +3,18 @@ import {
   MPesaStatement,
   FileStatus,
   ExportFormat,
-  ExportOptions,
+  ExportOptions as ExportOptionsType,
 } from "./types";
 import { PdfService } from "./services/pdfService";
 import { ExportService } from "./services/exportService";
 import FileUploader from "./components/file-uploader";
 import PasswordPrompt from "./components/password-prompt";
+import ExportOptions from "./components/export-options";
 import { UpdateChecker } from "./components/update-checker";
 import { Download, RotateCcw } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import dayjs from "dayjs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./components/ui/select";
 import { Button } from "./components/ui/button";
-import { Checkbox } from "./components/ui/checkbox";
 
 function App() {
   const [files, setFiles] = useState<File[]>([]);
@@ -33,7 +26,7 @@ function App() {
   const [exportFormat, setExportFormat] = useState<ExportFormat>(
     ExportFormat.XLSX
   );
-  const [exportOptions, setExportOptions] = useState<ExportOptions>({
+  const [exportOptions, setExportOptions] = useState<ExportOptionsType>({
     includeChargesSheet: false,
     includeSummarySheet: false,
     includeBreakdownSheet: false,
@@ -45,6 +38,29 @@ function App() {
 
   const formatDateForFilename = (): string => {
     return dayjs().format("YYYY-MM-DD_HH-mm-ss");
+  };
+
+  const handleFormatChange = (format: ExportFormat) => {
+    setExportFormat(format);
+    const combinedStatement = statements[0];
+    const fileName = ExportService.getFileName(
+      combinedStatement,
+      format,
+      formatDateForFilename()
+    );
+
+    ExportService.createDownloadLink(combinedStatement, format, exportOptions)
+      .then(setExportLink)
+      .catch(() => setExportLink(""));
+    setExportFileName(fileName);
+  };
+
+  const handleOptionsChange = (options: ExportOptionsType) => {
+    setExportOptions(options);
+    const combinedStatement = statements[0];
+    ExportService.createDownloadLink(combinedStatement, exportFormat, options)
+      .then(setExportLink)
+      .catch(() => setExportLink(""));
   };
 
   // Get app version on component mount
@@ -231,6 +247,52 @@ function App() {
     }
   };
 
+  const handleSkipFile = async () => {
+    if (files.length === 0) return;
+
+    setError(undefined);
+    const nextIndex = currentFileIndex + 1;
+
+    if (nextIndex < files.length) {
+      // Continue processing remaining files
+      const result = await processFiles(files, nextIndex, statements);
+      if (result?.error) {
+        setStatus(FileStatus.ERROR);
+        setError(result.error);
+      }
+    } else {
+      // No more files to process
+      if (statements.length > 0) {
+        // We have some processed statements, show success
+        const combinedStatement = combineStatements(statements);
+        const fileName = ExportService.getFileName(
+          combinedStatement,
+          exportFormat,
+          formatDateForFilename()
+        );
+
+        ExportService.createDownloadLink(
+          combinedStatement,
+          exportFormat,
+          exportOptions
+        )
+          .then(setExportLink)
+          .catch(() => setExportLink(""));
+        setExportFileName(fileName);
+        setStatus(FileStatus.SUCCESS);
+      } else {
+        // No statements processed, reset to idle
+        setStatus(FileStatus.IDLE);
+        setFiles([]);
+        setCurrentFileIndex(0);
+      }
+    }
+  };
+
+  const handleResetProcess = () => {
+    handleReset();
+  };
+
   const handleReset = () => {
     setFiles([]);
     setStatus(FileStatus.IDLE);
@@ -317,6 +379,8 @@ function App() {
               <div className="transition-all duration-300">
                 <PasswordPrompt
                   onPasswordSubmit={handlePasswordSubmit}
+                  onSkip={handleSkipFile}
+                  onReset={handleResetProcess}
                   status={status}
                   error={error}
                   currentFileName={files[currentFileIndex]?.name}
@@ -350,183 +414,13 @@ function App() {
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium   mb-2">
-                    Export Format
-                  </label>
-                  <Select
-                    value={exportFormat}
-                    onValueChange={(value: ExportFormat) => {
-                      setExportFormat(value);
-                      const combinedStatement = statements[0];
-                      const fileName = ExportService.getFileName(
-                        combinedStatement,
-                        value,
-                        formatDateForFilename()
-                      );
-
-                      ExportService.createDownloadLink(
-                        combinedStatement,
-                        value,
-                        exportOptions
-                      )
-                        .then(setExportLink)
-                        .catch(() => setExportLink(""));
-                      setExportFileName(fileName);
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select export format">
-                        {ExportService.getFormatDisplayName(exportFormat)}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ExportService.getAllFormats().map((format) => (
-                        <SelectItem key={format} value={format}>
-                          {ExportService.getFormatDisplayName(format)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ExportOptions
+                    exportFormat={exportFormat}
+                    exportOptions={exportOptions}
+                    onFormatChange={handleFormatChange}
+                    onOptionsChange={handleOptionsChange}
+                  />
                 </div>
-
-                {exportFormat === ExportFormat.XLSX && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium mb-2">
-                      Additional Sheets
-                    </label>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="flex items-center space-x-2">
-                          <Checkbox
-                            checked={exportOptions.includeChargesSheet}
-                            onCheckedChange={(value) => {
-                              const newOptions = {
-                                ...exportOptions,
-                                includeChargesSheet: Boolean(value),
-                              };
-                              setExportOptions(newOptions);
-
-                              const combinedStatement = statements[0];
-                              ExportService.createDownloadLink(
-                                combinedStatement,
-                                exportFormat,
-                                newOptions
-                              )
-                                .then(setExportLink)
-                                .catch(() => setExportLink(""));
-                            }}
-                            className="rounded border-gray-300 text-primary focus:ring-primary"
-                          />
-                          <span className="text-sm">
-                            Include Charges/Fees Sheet
-                          </span>
-                        </label>
-                        <p className="text-xs text-muted-foreground ml-6">
-                          Creates a separate sheet with all transaction charges
-                          and fees
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="flex items-center space-x-2">
-                          <Checkbox
-                            checked={exportOptions.includeSummarySheet}
-                            onCheckedChange={(value) => {
-                              const newOptions = {
-                                ...exportOptions,
-                                includeSummarySheet: Boolean(value),
-                              };
-                              setExportOptions(newOptions);
-
-                              const combinedStatement = statements[0];
-                              ExportService.createDownloadLink(
-                                combinedStatement,
-                                exportFormat,
-                                newOptions
-                              )
-                                .then(setExportLink)
-                                .catch(() => setExportLink(""));
-                            }}
-                            className="rounded border-gray-300 text-primary focus:ring-primary"
-                          />
-                          <span className="text-sm">
-                            Include Financial Summary Sheet
-                          </span>
-                        </label>
-                        <p className="text-xs text-muted-foreground ml-6">
-                          Creates a comprehensive financial analysis with cash
-                          flow, spending patterns, and insights
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="flex items-center space-x-2">
-                          <Checkbox
-                            checked={exportOptions.includeBreakdownSheet}
-                            onCheckedChange={(value) => {
-                              const newOptions = {
-                                ...exportOptions,
-                                includeBreakdownSheet: Boolean(value),
-                              };
-                              setExportOptions(newOptions);
-
-                              const combinedStatement = statements[0];
-                              ExportService.createDownloadLink(
-                                combinedStatement,
-                                exportFormat,
-                                newOptions
-                              )
-                                .then(setExportLink)
-                                .catch(() => setExportLink(""));
-                            }}
-                            className="rounded border-gray-300 text-primary focus:ring-primary"
-                          />
-                          <span className="text-sm">
-                            Include Monthly & Weekly Breakdown Sheet
-                          </span>
-                        </label>
-                        <p className="text-xs text-muted-foreground ml-6">
-                          Creates a pivot-like table with monthly and weekly
-                          aggregations showing inflows, outflows, net change,
-                          and average transaction size
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="flex items-center space-x-2">
-                          <Checkbox
-                            checked={exportOptions.includeDailyBalanceSheet}
-                            onCheckedChange={(value) => {
-                              const newOptions = {
-                                ...exportOptions,
-                                includeDailyBalanceSheet: Boolean(value),
-                              };
-                              setExportOptions(newOptions);
-
-                              const combinedStatement = statements[0];
-                              ExportService.createDownloadLink(
-                                combinedStatement,
-                                exportFormat,
-                                newOptions
-                              )
-                                .then(setExportLink)
-                                .catch(() => setExportLink(""));
-                            }}
-                            className="rounded border-gray-300 text-primary focus:ring-primary"
-                          />
-                          <span className="text-sm">
-                            Include Daily Balance Tracker Sheet
-                          </span>
-                        </label>
-                        <p className="text-xs text-muted-foreground ml-6">
-                          Creates a day-by-day balance tracker showing your
-                          highest and lowest balances with spending pattern
-                          insights
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex flex-col sm:flex-row gap-3 justify-center mb-5">
                   <Button
@@ -556,7 +450,7 @@ function App() {
                     className="px-6 text-foreground"
                   >
                     <RotateCcw className="w-5 h-5" />
-                    Process More Files
+                    Start Again
                   </Button>
                 </div>
 

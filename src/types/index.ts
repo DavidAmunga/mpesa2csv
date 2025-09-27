@@ -33,4 +33,5 @@ export interface ExportOptions {
   includeSummarySheet?: boolean;
   includeBreakdownSheet?: boolean;
   includeDailyBalanceSheet?: boolean;
+  includeAmountDistributionSheet?: boolean;
 }
