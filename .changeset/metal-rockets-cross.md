@@ -2,4 +2,4 @@
 "mpesa2csv": minor
 ---
 
-add transaction filters
+feat: add transaction filters
