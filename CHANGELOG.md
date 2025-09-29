@@ -1,5 +1,13 @@
 # mpesa2csv
 
+## 0.5.0
+
+### Minor Changes
+
+- c409480: feat: added android base setup
+- c409480: feat: add transaction filters
+- c409480: feat: add open file on download success button
+
 ## 0.4.0
 
 ### Minor Changes
