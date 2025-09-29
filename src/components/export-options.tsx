@@ -1,4 +1,8 @@
-import { ExportFormat, ExportOptions as ExportOptionsType } from "../types";
+import {
+  ExportFormat,
+  ExportOptions as ExportOptionsType,
+  SortOrder,
+} from "../types";
 import { ExportService } from "../services/exportService";
 import {
   Select,
@@ -73,6 +77,25 @@ export default function ExportOptions({
     onOptionsChange(newOptions);
   };
 
+  const handleFilterChange = (
+    filterKey: keyof ExportOptionsType,
+    value: boolean
+  ) => {
+    const newOptions = {
+      ...exportOptions,
+      [filterKey]: value,
+    };
+    onOptionsChange(newOptions);
+  };
+
+  const handleSortChange = (value: SortOrder) => {
+    const newOptions = {
+      ...exportOptions,
+      sortOrder: value,
+    };
+    onOptionsChange(newOptions);
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -93,6 +116,63 @@ export default function ExportOptions({
         </Select>
       </div>
 
+      {/* Filter Area */}
+      <div>
+        <div className="space-y-3">
+          {/* Filter out charges */}
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="filter-charges"
+              checked={exportOptions.filterOutCharges || false}
+              onCheckedChange={(value) =>
+                handleFilterChange("filterOutCharges", Boolean(value))
+              }
+              className="rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <Label
+              htmlFor="filter-charges"
+              className="flex-1 text-sm cursor-pointer"
+            >
+              Filter out charges and fees
+            </Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p>
+                  Excludes transactions containing "charge" in the details from
+                  the main transactions sheet
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* Sort order */}
+          <div>
+            <Label className="block text-sm font-medium mb-2">Sort By</Label>
+            <Select
+              value={exportOptions.sortOrder || SortOrder.DESC}
+              onValueChange={handleSortChange}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select sort order">
+                  {exportOptions.sortOrder === SortOrder.DESC
+                    ? "Most Recent First"
+                    : "Oldest First"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SortOrder.DESC}>
+                  Most Recent First
+                </SelectItem>
+                <SelectItem value={SortOrder.ASC}>Oldest First</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
       {exportFormat === ExportFormat.XLSX && (
         <div>
           <Label className="block text-sm font-medium mb-3">
@@ -102,13 +182,19 @@ export default function ExportOptions({
             {SHEET_OPTIONS.map((option) => (
               <div key={option.key} className="flex items-center space-x-2">
                 <Checkbox
-                  checked={exportOptions[option.key] || false}
+                  id={`sheet-${option.key}`}
+                  checked={Boolean(exportOptions[option.key]) || false}
                   onCheckedChange={(value) =>
                     handleOptionChange(option.key, Boolean(value))
                   }
                   className="rounded border-gray-300 text-primary focus:ring-primary"
                 />
-                <Label className="flex-1 text-sm">{option.name}</Label>
+                <Label
+                  htmlFor={`sheet-${option.key}`}
+                  className="flex-1 text-sm cursor-pointer"
+                >
+                  {option.name}
+                </Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />

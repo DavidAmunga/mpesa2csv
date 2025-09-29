@@ -3,6 +3,12 @@ name: "Main Release"
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".github/**.md"
+      - "README.md"
+      - "CHANGELOG.md"
   workflow_dispatch:
     inputs:
       force_release:

@@ -14,7 +14,7 @@
       {
         "title": "mpesa2csv - Convert M-PESA Statements to CSV/Excel",
         "width": 640,
-        "height": 600,
+        "height": 670,
         "minWidth": 500,
         "minHeight": 400,
         "resizable": true
@@ -64,7 +64,7 @@
         },
         "windowSize": {
           "width": 660,
-          "height": 600
+          "height": 670
         }
       }
     },
@@ -72,6 +72,9 @@
       "deb": {
         "depends": []
       }
+    },
+    "android": {
+      "minSdkVersion": 24
     }
   },
   "plugins": {

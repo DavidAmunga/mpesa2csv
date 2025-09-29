@@ -10,7 +10,7 @@ export class ExportService {
   ): Promise<string> {
     switch (format) {
       case ExportFormat.CSV:
-        return CsvService.createDownloadLink(statement);
+        return CsvService.createDownloadLink(statement, options);
       case ExportFormat.XLSX:
         return await XlsxService.createDownloadLink(statement, options);
       default:
@@ -66,7 +66,7 @@ export class ExportService {
   ): Promise<ArrayBuffer> {
     switch (format) {
       case ExportFormat.CSV:
-        const csvContent = CsvService.convertStatementToCsv(statement);
+        const csvContent = CsvService.convertStatementToCsv(statement, options);
         const BOM = "\uFEFF";
         const csvWithBOM = BOM + csvContent;
         return new TextEncoder().encode(csvWithBOM).buffer;

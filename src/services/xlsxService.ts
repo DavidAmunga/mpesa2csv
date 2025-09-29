@@ -7,12 +7,16 @@ import {
   addDailyBalanceTrackerSheet,
   addTransactionAmountDistributionSheet,
 } from "./exports";
+import { applyTransactionFilters } from "./transactionFilters";
 
 export class XlsxService {
   static async convertStatementToXlsx(
     statement: MPesaStatement,
     options?: ExportOptions
   ): Promise<ArrayBuffer> {
+    // Apply filters to the statement for the main transactions sheet
+    const filteredStatement = applyTransactionFilters(statement, options);
+
     // Create a new workbook
     const workbook = new ExcelJS.Workbook();
 
@@ -46,8 +50,8 @@ export class XlsxService {
     };
     headerRow.alignment = { horizontal: "center" };
 
-    // Add transaction data
-    statement.transactions.forEach((transaction) => {
+    // Add filtered and sorted transaction data
+    filteredStatement.transactions.forEach((transaction) => {
       worksheet.addRow({
         receiptNo: transaction.receiptNo,
         completionTime: transaction.completionTime,
