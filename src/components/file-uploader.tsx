@@ -211,9 +211,14 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           </div>
         )}
 
-        <div className="text-xs  mt-4 flex items-center justify-center gap-1">
-          🔒 <strong>100% Private:</strong> All processing happens on your
-          device. No data leaves your computer.
+        <div className="text-xs sm:text-sm mt-4 flex flex-col items-center justify-center gap-1 text-center sm:text-left px-4">
+          <div className="flex items-center w-full gap-1">
+            <strong className="w-full text-center">🔒 100% Private</strong>
+          </div>
+          <span className="w-full text-center">
+            All processing happens locally on your device. Your data never
+            leaves your computer or gets sent to any servers.
+          </span>
         </div>
       </div>
     </div>

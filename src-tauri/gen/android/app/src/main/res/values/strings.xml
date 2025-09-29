@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">mpesa2csv</string>
+    <string name="main_activity_title">mpesa2csv</string>
+</resources>

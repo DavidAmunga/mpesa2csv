@@ -28,10 +28,18 @@ export enum ExportFormat {
   XLSX = "xlsx",
 }
 
+export enum SortOrder {
+  DESC="desc",
+  ASC="asc",
+}
+
 export interface ExportOptions {
   includeChargesSheet?: boolean;
   includeSummarySheet?: boolean;
   includeBreakdownSheet?: boolean;
   includeDailyBalanceSheet?: boolean;
   includeAmountDistributionSheet?: boolean;
+  // Filter options
+  filterOutCharges?: boolean;
+  sortOrder?: SortOrder;
 }

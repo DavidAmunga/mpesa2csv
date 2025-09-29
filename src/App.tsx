@@ -11,7 +11,7 @@ import FileUploader from "./components/file-uploader";
 import PasswordPrompt from "./components/password-prompt";
 import ExportOptions from "./components/export-options";
 import { UpdateChecker } from "./components/update-checker";
-import { Download, RotateCcw } from "lucide-react";
+import { Download, RotateCcw, ExternalLink } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import dayjs from "dayjs";
 import { Button } from "./components/ui/button";
@@ -35,6 +35,8 @@ function App() {
   const [currentFileIndex, setCurrentFileIndex] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [appVersion, setAppVersion] = useState<string>("");
+  const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
+  const [savedFilePath, setSavedFilePath] = useState<string>("");
 
   const formatDateForFilename = (): string => {
     return dayjs().format("YYYY-MM-DD_HH-mm-ss");
@@ -300,12 +302,48 @@ function App() {
     setStatements([]);
     setCurrentFileIndex(0);
     setIsDownloading(false);
+    setDownloadSuccess(false);
+    setSavedFilePath("");
 
     if (exportLink) {
       URL.revokeObjectURL(exportLink);
       setExportLink("");
       setExportFileName("");
     }
+  };
+
+  const getDefaultFileName = () => {
+    return (
+      exportFileName ||
+      `mpesa_statement.${ExportService.getFileExtension(exportFormat)}`
+    );
+  };
+
+  const handleDownloadError = (error: any) => {
+    const errorMessage =
+      typeof error === "string" ? error : error.message || error.toString();
+
+    if (errorMessage.includes("cancelled")) {
+      setError(undefined);
+    } else if (errorMessage.includes("permission")) {
+      setError(
+        "Permission denied. Please check app permissions and try again."
+      );
+    } else if (errorMessage.includes("space")) {
+      setError("Not enough storage space. Please free up space and try again.");
+    } else {
+      setError(`Failed to save file: ${errorMessage}`);
+    }
+  };
+
+  const prepareFileContent = async (statement: MPesaStatement) => {
+    const arrayBuffer = await ExportService.getFileBuffer(
+      statement,
+      exportFormat,
+      exportOptions
+    );
+    const content = new Uint8Array(arrayBuffer);
+    return Array.from(content);
   };
 
   const handleDownload = async () => {
@@ -316,36 +354,41 @@ function App() {
 
     try {
       const combinedStatement = statements[0];
+      const contentArray = await prepareFileContent(combinedStatement);
 
-      const arrayBuffer = await ExportService.getFileBuffer(
-        combinedStatement,
-        exportFormat,
-        exportOptions
-      );
-      const content = new Uint8Array(arrayBuffer);
-
-      await invoke<string>("save_file", {
-        content: Array.from(content),
-        defaultFilename:
-          exportFileName ||
-          `mpesa_statement.${ExportService.getFileExtension(exportFormat)}`,
+      const invokeParams = {
+        content: contentArray,
+        defaultFilename: getDefaultFileName(),
         fileType: ExportService.getFileExtension(exportFormat),
-      });
+      };
+
+      const result = await invoke<string>("save_file", invokeParams);
 
       setError(undefined);
+      setDownloadSuccess(true);
+      setSavedFilePath(result);
     } catch (error: any) {
-      console.log(error);
-      if (error.includes("cancelled")) {
-        setError(undefined);
-      } else {
-        setError("Failed to save file. Please try again.");
-      }
+      handleDownloadError(error);
+    } finally {
+      setIsDownloading(false);
     }
-
-    setIsDownloading(false);
   };
 
-  // Clean up resources when component unmounts
+  const handleOpenFile = async () => {
+    try {
+      if (savedFilePath) {
+        const filePath = savedFilePath.replace(
+          "File saved successfully to: ",
+          ""
+        );
+        await invoke("open_file", { path: filePath });
+      }
+    } catch (error: any) {
+      console.error("Failed to open file:", error);
+      setError(`Failed to open file: ${error.message || error.toString()}`);
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (exportLink) {
@@ -356,7 +399,6 @@ function App() {
 
   return (
     <div className="min-h-screen max-h-screen  flex flex-col overflow-hidden">
-      {/* Auto-check for updates on app start */}
       <UpdateChecker autoCheck={true} />
       <div className="flex-1 mx-auto px-4 py-4 flex flex-col max-w-4xl w-full">
         <main className="flex-1 flex items-center justify-center">
@@ -389,7 +431,7 @@ function App() {
                 />
               </div>
             ) : status === FileStatus.PROCESSING ? (
-              <div className="rounded-lg shadow-sm p-6 text-center flex flex-col items-center justify-center transition-all duration-300 min-h-[300px]">
+              <div className=" p-6 text-center flex flex-col items-center justify-center transition-all duration-300 min-h-[300px]">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
                 <p className="text-center">
                   Processing file {currentFileIndex + 1} of {files.length}...
@@ -404,12 +446,12 @@ function App() {
               <div className="rounded-lg px-6 py-6 transition-all duration-300 ">
                 <div className="text-center mb-5">
                   <h2 className="text-xl font-semibold text-primary mb-2">
-                    🎉 Conversion Complete!
+                    ✅ Your Data is Ready!
                   </h2>
                   <p className="">
-                    Successfully converted {files.length} PDF file
-                    {files.length > 1 ? "s" : ""} with{" "}
-                    {statements[0].transactions.length} transactions
+                    Processed {statements[0].transactions.length} transactions
+                    from {files.length} statement{files.length > 1 ? "s" : ""} •
+                    Choose your export options below
                   </p>
                 </div>
 
@@ -423,25 +465,39 @@ function App() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 justify-center mb-5">
-                  <Button
-                    onClick={handleDownload}
-                    disabled={isDownloading}
-                    size="lg"
-                    className="px-6"
-                  >
-                    {isDownloading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current"></div>
-                        Downloading...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-5 h-5" />
-                        Download{" "}
-                        {ExportService.getFormatDisplayName(exportFormat)}
-                      </>
-                    )}
-                  </Button>
+                  {!downloadSuccess ? (
+                    <Button
+                      onClick={handleDownload}
+                      disabled={isDownloading}
+                      size="lg"
+                      className="px-6"
+                    >
+                      {isDownloading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current"></div>
+                          Preparing Export...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-5 h-5" />
+                          Export as{" "}
+                          {ExportService.getFormatDisplayName(exportFormat)}
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3">
+                      <Button
+                        onClick={handleOpenFile}
+                        variant="outline"
+                        size="lg"
+                        className="px-6 text-foreground"
+                      >
+                        <ExternalLink className="w-5 h-5" />
+                        Open File
+                      </Button>
+                    </div>
+                  )}
 
                   <Button
                     onClick={handleReset}
@@ -455,9 +511,18 @@ function App() {
                 </div>
 
                 <div className="pt-3 border-t border-border">
-                  <p className="text-xs  text-center truncate">
+                  <p className="text-xs text-center truncate">
                     File: {exportFileName}
                   </p>
+                  {downloadSuccess && savedFilePath && (
+                    <p className="text-xs text-center mt-1 truncate">
+                      Saved to:{" "}
+                      {savedFilePath.replace(
+                        "File saved successfully to: ",
+                        ""
+                      )}
+                    </p>
+                  )}
                 </div>
               </div>
             ) : null}
