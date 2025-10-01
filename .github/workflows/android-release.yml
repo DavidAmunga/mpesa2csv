@@ -163,52 +163,16 @@ jobs:
         run: |
           echo "Setting up Android signing..."
 
-          # Create keystore directory
-          mkdir -p ~/.android
+          # Decode and save keystore to the Android project directory
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > src-tauri/gen/android/release.keystore
 
-          # Decode and save keystore
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > ~/.android/release.keystore
-
-          # Create key.properties file
+          # Create key.properties file with correct paths
           cat > src-tauri/gen/android/key.properties << EOF
-          storeFile=$HOME/.android/release.keystore
+          storeFile=../release.keystore
           storePassword=$ANDROID_KEYSTORE_PASSWORD
           keyAlias=$ANDROID_KEY_ALIAS
           keyPassword=$ANDROID_KEY_PASSWORD
           EOF
-
-          # Check if signing configuration already exists to prevent duplicates
-          if ! grep -q "keystorePropertiesFile" src-tauri/gen/android/app/build.gradle.kts; then
-            # Modify the existing build.gradle.kts file directly
-            cat >> src-tauri/gen/android/app/build.gradle.kts << 'GRADLE_EOF'
-
-          // Load keystore properties for signing
-          val keystorePropertiesFile = rootProject.file("key.properties")
-          val keystoreProperties = java.util.Properties()
-          if (keystorePropertiesFile.exists()) {
-            keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
-            
-            android {
-              signingConfigs {
-                create("release") {
-                  keyAlias = keystoreProperties.getProperty("keyAlias")
-                  keyPassword = keystoreProperties.getProperty("keyPassword")
-                  storeFile = file(keystoreProperties.getProperty("storeFile"))
-                  storePassword = keystoreProperties.getProperty("storePassword")
-                }
-              }
-              buildTypes {
-                getByName("release") {
-                  signingConfig = signingConfigs.getByName("release")
-                }
-              }
-            }
-          }
-GRADLE_EOF
-            echo "✅ Signing configuration added"
-          else
-            echo "⚠️ Signing configuration already exists, skipping"
-          fi
 
           echo "✅ Android signing configured"
         env:
@@ -221,9 +185,9 @@ GRADLE_EOF
         run: |
           cd src-tauri
           if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
-            echo "🔨 Building signed release APK and AAB..."
+              echo "🔨 Building signed release APK and AAB..."
           else
-            echo "⚠️ No signing keys provided - building unsigned release"
+              echo "⚠️ No signing keys provided - building unsigned release"
           fi
 
           cargo tauri android build --target aarch64 --verbose
