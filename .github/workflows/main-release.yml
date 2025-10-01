@@ -1,14 +1,8 @@
 name: "Main Release"
 
+# TEMPORARILY DISABLED - Using android-release.yml instead
+# This workflow is disabled by using workflow_dispatch only (no automatic triggers)
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - ".github/**.md"
-      - "README.md"
-      - "CHANGELOG.md"
   workflow_dispatch:
     inputs:
       force_release:
@@ -26,6 +20,11 @@ on:
           - patch
           - minor
           - major
+      enable_workflow:
+        description: "Confirm you want to run this workflow (type 'yes')"
+        required: true
+        default: "no"
+        type: string
 
 concurrency:
   group: main-release
@@ -36,6 +35,7 @@ jobs:
   check-release:
     name: "Check Release Status"
     runs-on: ubuntu-latest
+    if: github.event.inputs.enable_workflow == 'yes'
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
       version: ${{ steps.check.outputs.version }}

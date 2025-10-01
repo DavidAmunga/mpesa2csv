@@ -7,6 +7,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+
 node_modules
 dist
 dist-ssr
@@ -23,3 +24,19 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Android Build Artifacts
+*.apk
+*.aab
+
+# Android Signing & Configuration
+src-tauri/gen/key.properties
+src-tauri/gen/release.keystore
+src-tauri/gen/android/key.properties
+src-tauri/gen/android/release.keystore
+src-tauri/gen/android/local.properties
+
+# Android Build Directories
+src-tauri/gen/android/app/build/
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/gradle/
