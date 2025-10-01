@@ -514,7 +514,7 @@ jobs:
             - **Version**: `${{ needs.prepare-release.outputs.version }}`
             - **Build Date**: `${{ steps.timestamp.outputs.build_time }}`
             - **Total Changes**: ${{ steps.changelog.outputs.total_changes }}
-            - **Platforms**: Windows, macOS (Intel + Apple Silicon), Linux
+            - **Platforms**: Windows, macOS (Intel + Apple Silicon), Linux${{ needs.build-android.result == 'success' && ', Android' || '' }}
             ${{ steps.changelog.outputs.breaking > 0 && format('- **Breaking Changes**: {0}', steps.changelog.outputs.breaking) || '' }}
 
             ### 🔍 System Requirements
@@ -522,6 +522,7 @@ jobs:
             - **Windows**: Windows 10 version 1903 or later
             - **macOS**: macOS 10.15 Catalina or later  
             - **Linux**: Modern distribution with GTK 3.24+ and WebKit2GTK 4.1+
+            ${{ needs.build-android.result == 'success' && '- **Android**: Android 7.0 (API level 24) or later' || '' }}
 
             ### 🔄 Auto-Update
 
@@ -586,6 +587,7 @@ jobs:
       - name: Release summary
         run: |
           echo "🎉 Release ${{ needs.prepare-release.outputs.tag }} completed!"
-          echo "✅ Binaries built and published"
+          echo "✅ Desktop binaries built and published"
+          ${{ needs.build-android.result == 'success' && 'echo "✅ Android APK/AAB built and published"' || 'echo "ℹ️ Android build skipped or failed"' }}
           echo "✅ Release branch created for hotfixes"
           echo "🔗 View release: https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare-release.outputs.tag }}"
