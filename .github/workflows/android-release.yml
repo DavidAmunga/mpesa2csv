@@ -197,9 +197,16 @@ jobs:
           chmod +x rename-android-builds.sh
           ./rename-android-builds.sh
 
-          # List created files
+          # List created files and move them to the correct location for artifact upload
           echo "📱 Created files:"
-          ls -la *.apk *.aab 2>/dev/null || echo "No build files found"
+          if ls *.apk *.aab 1> /dev/null 2>&1; then
+            echo "✅ Build files found in app directory:"
+            ls -la *.apk *.aab
+          else
+            echo "ℹ️ No build files found in app directory, checking if they were created..."
+            # The script might have created them elsewhere, let's find them
+            find . -name "*.apk" -o -name "*.aab" | head -10
+          fi
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -210,53 +217,22 @@ jobs:
         id: timestamp
         run: echo "build_time=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "android-v${{ needs.check-android-release.outputs.version }}"
-          name: "Android Release v${{ needs.check-android-release.outputs.version }}"
-          body: |
-            ## 📱 Android Release v${{ needs.check-android-release.outputs.version }}
-
-            This is an Android-specific release of mpesa2csv.
-
-            ### 📥 Download
-
-            - **Android APK**: Download the APK file below and install on your Android device
-            - **Android AAB**: App Bundle for Google Play Store distribution
-            - **Minimum Android Version**: Android 7.0 (API level 24)
-            - **Architecture**: ARM64 (aarch64)
-
-            ### 🔧 Installation
-
-            1. Download the APK file
-            2. Enable "Install from unknown sources" in your Android settings
-            3. Open the APK file to install
-            4. Grant necessary permissions when prompted
-
-            ### 📊 Build Information
-
-            - **Version**: `${{ needs.check-android-release.outputs.version }}`
-            - **Build Date**: `${{ steps.timestamp.outputs.build_time }}`
-            - **Target**: Android ARM64
-            - **Signing**: ${{ env.ANDROID_KEYSTORE_BASE64 != '' && 'Release (Signed)' || 'Release (Unsigned)' }}
-
-            ### ⚠️ Important Notes
-
-            - This is a mobile version of the desktop application
-            - Some features may be limited compared to the desktop version
-            - Make sure to download from official sources only
-
-            ---
-
-            **Repository**: https://github.com/${{ github.repository }}
-          files: |
-            *.apk
-            *.aab
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Disabled GitHub release creation - only collecting artifacts for now
+      # - name: Create GitHub Release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: "android-v${{ needs.check-android-release.outputs.version }}"
+      #     name: "Android Release v${{ needs.check-android-release.outputs.version }}"
+      #     body: |
+      #       ## 📱 Android Release v${{ needs.check-android-release.outputs.version }}
+      #       This is an Android-specific release of mpesa2csv.
+      #     files: |
+      #       *.apk
+      #       *.aab
+      #     draft: false
+      #     prerelease: false
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
@@ -266,6 +242,7 @@ jobs:
             *.apk
             *.aab
           retention-days: 30
+          if-no-files-found: warn
 
   # Step 3: Notify completion
   notify-android-completion:
