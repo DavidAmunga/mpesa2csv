@@ -14,7 +14,7 @@ on:
       force_release:
         description: "Force a release even if no changesets"
         required: false
-        default: false
+        default: true
         type: boolean
 
 concurrency:
