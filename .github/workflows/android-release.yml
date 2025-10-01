@@ -1,14 +1,24 @@
 name: "Android Release"
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - ".github/**.md"
-      - "README.md"
-      - "CHANGELOG.md"
+  workflow_call:
+    inputs:
+      version:
+        description: "Version to build"
+        required: false
+        type: string
+      force_build:
+        description: "Force build even if conditions not met"
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      apk_path:
+        description: "Path to built APK"
+        value: ${{ jobs.build-android.outputs.apk_path }}
+      aab_path:
+        description: "Path to built AAB"
+        value: ${{ jobs.build-android.outputs.aab_path }}
   workflow_dispatch:
     inputs:
       force_release:
@@ -78,15 +88,22 @@ jobs:
           SHOULD_RELEASE="false"
           if [[ "$IS_CHANGESET_RELEASE" == "true" ]] || \
              [[ "$VERSION_CHANGED" == "true" ]] || \
-             [[ "${{ github.event.inputs.force_release }}" == "true" ]]; then
+             [[ "${{ github.event.inputs.force_release }}" == "true" ]] || \
+             [[ "${{ inputs.force_build }}" == "true" ]]; then
             SHOULD_RELEASE="true"
             echo "✅ Android release conditions met"
           else
             echo "ℹ️ No Android release needed"
           fi
 
-          # Get current version
-          VERSION=$(node -p "require('./package.json').version")
+          # Get current version (use input version if provided, otherwise from package.json)
+          if [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+            echo "📦 Using provided version: $VERSION"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+            echo "📦 Using package.json version: $VERSION"
+          fi
 
           echo "should_release=$SHOULD_RELEASE" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -99,6 +116,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      apk_path: ${{ steps.build_info.outputs.apk_path }}
+      aab_path: ${{ steps.build_info.outputs.aab_path }}
     steps:
       - uses: actions/checkout@v4
 
@@ -216,6 +236,20 @@ jobs:
       - name: Generate build timestamp
         id: timestamp
         run: echo "build_time=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
+
+      - name: Set build info outputs
+        id: build_info
+        run: |
+          # Set output paths for the built files
+          APK_PATH="mpesa2csv-v${{ needs.check-android-release.outputs.version }}-universal-release.apk"
+          AAB_PATH="mpesa2csv-v${{ needs.check-android-release.outputs.version }}-universal-release.aab"
+
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "aab_path=$AAB_PATH" >> $GITHUB_OUTPUT
+
+          echo "📱 Build outputs set:"
+          echo "  APK: $APK_PATH"
+          echo "  AAB: $AAB_PATH"
 
       # Disabled GitHub release creation - only collecting artifacts for now
       # - name: Create GitHub Release

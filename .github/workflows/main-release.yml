@@ -1,8 +1,14 @@
 name: "Main Release"
 
-# TEMPORARILY DISABLED - Using android-release.yml instead
-# This workflow is disabled by using workflow_dispatch only (no automatic triggers)
 on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".github/**.md"
+      - "README.md"
+      - "CHANGELOG.md"
   workflow_dispatch:
     inputs:
       force_release:
@@ -20,11 +26,11 @@ on:
           - patch
           - minor
           - major
-      enable_workflow:
-        description: "Confirm you want to run this workflow (type 'yes')"
-        required: true
-        default: "no"
-        type: string
+      include_android:
+        description: "Include Android build in this release"
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: main-release
@@ -35,7 +41,6 @@ jobs:
   check-release:
     name: "Check Release Status"
     runs-on: ubuntu-latest
-    if: github.event.inputs.enable_workflow == 'yes'
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
       version: ${{ steps.check.outputs.version }}
@@ -225,11 +230,22 @@ jobs:
             echo "ℹ️ Tag $TAG already exists locally"
           fi
 
-  # Step 4: Build and release
+  # Step 4: Build Android (if requested)
+  build-android:
+    name: "Build Android"
+    needs: [check-release, prepare-release]
+    if: needs.check-release.outputs.should_release == 'true' && (github.event.inputs.include_android == 'true' || github.event.inputs.include_android == null)
+    uses: ./.github/workflows/android-release.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
+      force_build: true
+    secrets: inherit
+
+  # Step 5: Build and release desktop
   build-and-release:
     name: "Build & Release"
     needs: [check-release, prepare-release]
-    if: needs.check-release.outputs.should_release == 'true'
+    if: needs.check-release.outputs.should_release == 'true' && always()
     permissions:
       contents: write
     strategy:
@@ -437,6 +453,14 @@ jobs:
         id: timestamp
         run: echo "build_time=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
 
+      - name: Download Android artifacts (if available)
+        if: needs.build-android.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: android-builds-v${{ needs.prepare-release.outputs.version }}
+          path: ./android-artifacts/
+        continue-on-error: true
+
       - name: Build and release Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -454,6 +478,7 @@ jobs:
         with:
           tagName: ${{ needs.prepare-release.outputs.tag }}
           releaseName: "mpesa2csv ${{ needs.prepare-release.outputs.tag }}"
+          includeUpdaterJson: true
           releaseBody: |
             ## 🚀 What's New in v${{ needs.prepare-release.outputs.version }}
 
@@ -482,6 +507,7 @@ jobs:
             | **macOS** | Intel x64 | [📥 Download .dmg](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_x64.dmg) | Open DMG and drag to Applications |
             | **Linux** | x64 (Ubuntu/Debian) | [📥 Download .deb](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.deb) | `sudo dpkg -i mpesa2csv_*.deb` |
             | **Linux** | x64 (Portable) | [📥 Download .AppImage](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.AppImage) | `chmod +x mpesa2csv_*.AppImage && ./mpesa2csv_*.AppImage` |
+            ${{ needs.build-android.result == 'success' && format('| **Android** | ARM64 | [📥 Download .apk](https://github.com/DavidAmunga/mpesa2csv/releases/download/{0}/mpesa2csv-v{1}-universal-release.apk) | Enable "Install from unknown sources" and install', needs.prepare-release.outputs.tag, needs.prepare-release.outputs.version) || '' }}
 
             ### 📊 Release Metadata
 
@@ -508,7 +534,38 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
-  # Step 5: Create release branch for hotfixes
+      - name: Upload Android artifacts to release
+        if: needs.build-android.result == 'success' && matrix.platform == 'ubuntu-22.04'
+        run: |
+          if [ -d "./android-artifacts" ]; then
+            echo "📱 Uploading Android artifacts to release..."
+            # Move Android artifacts to current directory for upload
+            find ./android-artifacts -name "*.apk" -o -name "*.aab" | while read file; do
+              if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                cp "$file" "./$filename"
+                echo "✅ Prepared $filename for release"
+              fi
+            done
+            
+            # Upload to GitHub release using gh CLI
+            if command -v gh &> /dev/null; then
+              for file in *.apk *.aab; do
+                if [ -f "$file" ]; then
+                  echo "📤 Uploading $file to release..."
+                  gh release upload "${{ needs.prepare-release.outputs.tag }}" "$file" --clobber || echo "⚠️ Failed to upload $file"
+                fi
+              done
+            else
+              echo "⚠️ GitHub CLI not available, Android artifacts not uploaded to release"
+            fi
+          else
+            echo "ℹ️ No Android artifacts found to upload"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Step 6: Create release branch for hotfixes
   create-release-branch:
     name: "Create Release Branch"
     needs: [check-release, prepare-release, build-and-release]
@@ -519,7 +576,7 @@ jobs:
       max_branches: 5
     secrets: inherit
 
-  # Step 6: Notify about release completion
+  # Step 7: Notify about release completion
   notify-completion:
     name: "Release Complete"
     runs-on: ubuntu-latest
