@@ -1,325 +1,324 @@
 name: "Android Release"
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - ".github/**.md"
-      - "README.md"
-      - "CHANGELOG.md"
-  workflow_dispatch:
-    inputs:
-      force_release:
-        description: "Force a release even if no changesets"
-        required: false
-        default: false
-        type: boolean
+    push:
+        branches: [main]
+        paths-ignore:
+            - "**.md"
+            - "docs/**"
+            - ".github/**.md"
+            - "README.md"
+            - "CHANGELOG.md"
+    workflow_dispatch:
+        inputs:
+            force_release:
+                description: "Force a release even if no changesets"
+                required: false
+                default: false
+                type: boolean
 
 concurrency:
-  group: android-release
-  cancel-in-progress: false
+    group: android-release
+    cancel-in-progress: false
 
 jobs:
-  # Step 1: Check if we should build Android
-  check-android-release:
-    name: "Check Android Release Status"
-    runs-on: ubuntu-latest
-    outputs:
-      should_release: ${{ steps.check.outputs.should_release }}
-      version: ${{ steps.check.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    # Step 1: Check if we should build Android
+    check-android-release:
+        name: "Check Android Release Status"
+        runs-on: ubuntu-latest
+        outputs:
+            should_release: ${{ steps.check.outputs.should_release }}
+            version: ${{ steps.check.outputs.version }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: lts/*
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
 
-      - name: Check release conditions
-        id: check
-        run: |
-          # Check if this is a changeset release commit or force release
-          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
-          echo "Latest commit: $COMMIT_MSG"
+            - name: Check release conditions
+              id: check
+              run: |
+                  # Check if this is a changeset release commit or force release
+                  COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+                  echo "Latest commit: $COMMIT_MSG"
 
-          # Check recent commits for changeset patterns
-          RECENT_COMMITS=$(git log -5 --pretty=format:"%s")
-          echo "Recent commits:"
-          echo "$RECENT_COMMITS"
+                  # Check recent commits for changeset patterns
+                  RECENT_COMMITS=$(git log -5 --pretty=format:"%s")
+                  echo "Recent commits:"
+                  echo "$RECENT_COMMITS"
 
-          IS_CHANGESET_RELEASE="false"
-          if [[ "$COMMIT_MSG" == *"chore: release version packages"* ]] || \
-             [[ "$COMMIT_MSG" == *"Version Packages"* ]] || \
-             [[ "$COMMIT_MSG" == *"changeset-release/main"* ]] || \
-             [[ "$RECENT_COMMITS" == *"chore: release version packages"* ]] || \
-             [[ "$RECENT_COMMITS" == *"Version Packages"* ]]; then
-            IS_CHANGESET_RELEASE="true"
-            echo "✅ This is a changeset release commit"
-          fi
+                  IS_CHANGESET_RELEASE="false"
+                  if [[ "$COMMIT_MSG" == *"chore: release version packages"* ]] || \
+                     [[ "$COMMIT_MSG" == *"Version Packages"* ]] || \
+                     [[ "$COMMIT_MSG" == *"changeset-release/main"* ]] || \
+                     [[ "$RECENT_COMMITS" == *"chore: release version packages"* ]] || \
+                     [[ "$RECENT_COMMITS" == *"Version Packages"* ]]; then
+                    IS_CHANGESET_RELEASE="true"
+                    echo "✅ This is a changeset release commit"
+                  fi
 
-          # Check for version changes in the last commit
-          VERSION_CHANGED="false"
-          if git diff HEAD~1 HEAD --name-only | grep -q "package.json\|src-tauri/Cargo.toml\|src-tauri/tauri.conf.json"; then
-            echo "📦 Version files changed in recent commit"
-            VERSION_CHANGED="true"
-          fi
+                  # Check for version changes in the last commit
+                  VERSION_CHANGED="false"
+                  if git diff HEAD~1 HEAD --name-only | grep -q "package.json\|src-tauri/Cargo.toml\|src-tauri/tauri.conf.json"; then
+                    echo "📦 Version files changed in recent commit"
+                    VERSION_CHANGED="true"
+                  fi
 
-          # Determine if we should release
-          SHOULD_RELEASE="false"
-          if [[ "$IS_CHANGESET_RELEASE" == "true" ]] || \
-             [[ "$VERSION_CHANGED" == "true" ]] || \
-             [[ "${{ github.event.inputs.force_release }}" == "true" ]]; then
-            SHOULD_RELEASE="true"
-            echo "✅ Android release conditions met"
-          else
-            echo "ℹ️ No Android release needed"
-          fi
+                  # Determine if we should release
+                  SHOULD_RELEASE="false"
+                  if [[ "$IS_CHANGESET_RELEASE" == "true" ]] || \
+                     [[ "$VERSION_CHANGED" == "true" ]] || \
+                     [[ "${{ github.event.inputs.force_release }}" == "true" ]]; then
+                    SHOULD_RELEASE="true"
+                    echo "✅ Android release conditions met"
+                  else
+                    echo "ℹ️ No Android release needed"
+                  fi
 
-          # Get current version
-          VERSION=$(node -p "require('./package.json').version")
+                  # Get current version
+                  VERSION=$(node -p "require('./package.json').version")
 
-          echo "should_release=$SHOULD_RELEASE" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "should_release=$SHOULD_RELEASE" >> $GITHUB_OUTPUT
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-  # Step 2: Build Android APK
-  build-android:
-    name: "Build Android APK"
-    needs: check-android-release
-    if: needs.check-android-release.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
+    # Step 2: Build Android APK
+    build-android:
+        name: "Build Android APK"
+        needs: check-android-release
+        if: needs.check-android-release.outputs.should_release == 'true'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: lts/*
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+            - name: Install Rust stable
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
 
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
+            - name: Setup Java 17
+              uses: actions/setup-java@v4
+              with:
+                  distribution: "temurin"
+                  java-version: "17"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+            - name: Setup Android SDK
+              uses: android-actions/setup-android@v3
 
-      - name: Install Android NDK
-        run: |
-          echo "Installing Android NDK..."
-          sdkmanager "ndk;25.2.9519653"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
-          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
+            - name: Install Android NDK
+              run: |
+                  echo "Installing Android NDK..."
+                  sdkmanager "ndk;25.2.9519653"
+                  echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
+                  echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
 
-      - name: Cache Rust dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            src-tauri/target
-          key: ${{ runner.os }}-android-cargo-${{ hashFiles('**/Cargo.lock') }}
+            - name: Cache Rust dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cargo/registry
+                      ~/.cargo/git
+                      src-tauri/target
+                  key: ${{ runner.os }}-android-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Cache Gradle dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            src-tauri/gen/android/.gradle
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+            - name: Cache Gradle dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.gradle/caches
+                      ~/.gradle/wrapper
+                      src-tauri/gen/android/.gradle
+                  key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
+            - name: Install frontend dependencies
+              run: pnpm install --frozen-lockfile
 
-      - name: Build frontend
-        run: pnpm build
+            - name: Build frontend
+              run: pnpm build
 
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2.0" --locked
+            - name: Install Tauri CLI
+              run: cargo install tauri-cli --version "^2.0" --locked
 
-      - name: Setup Android signing
-        if: env.ANDROID_KEYSTORE_BASE64 != ''
-        run: |
-          echo "Setting up Android signing..."
+            - name: Setup Android signing
+              if: env.ANDROID_KEYSTORE_BASE64 != ''
+              run: |
+                  echo "Setting up Android signing..."
 
-          # Create keystore directory
-          mkdir -p ~/.android
+                  # Create keystore directory
+                  mkdir -p ~/.android
 
-          # Decode and save keystore
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > ~/.android/release.keystore
+                  # Decode and save keystore
+                  echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > ~/.android/release.keystore
 
-          # Create key.properties file
-          cat > src-tauri/gen/android/key.properties << EOF
-          storeFile=$HOME/.android/release.keystore
-          storePassword=$ANDROID_KEYSTORE_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          keyPassword=$ANDROID_KEY_PASSWORD
-          EOF
+                  # Create key.properties file
+                  cat > src-tauri/gen/android/key.properties << EOF
+                  storeFile=$HOME/.android/release.keystore
+                  storePassword=$ANDROID_KEYSTORE_PASSWORD
+                  keyAlias=$ANDROID_KEY_ALIAS
+                  keyPassword=$ANDROID_KEY_PASSWORD
+                  EOF
 
-          # Create a separate signing configuration file
-          cat > src-tauri/gen/android/app/signing.gradle.kts << 'EOF'
-          // Load keystore properties
-          val keystorePropertiesFile = rootProject.file("key.properties")
-          val keystoreProperties = java.util.Properties()
-          if (keystorePropertiesFile.exists()) {
-              keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
-          }
+                  # Check if signing configuration already exists to prevent duplicates
+                  if ! grep -q "keystorePropertiesFile" src-tauri/gen/android/app/build.gradle.kts; then
+                      # Modify the existing build.gradle.kts file directly
+                      cat >> src-tauri/gen/android/app/build.gradle.kts << 'EOF'
 
-          android {
-              signingConfigs {
-                  if (keystorePropertiesFile.exists()) {
-                      create("release") {
-                          keyAlias = keystoreProperties.getProperty("keyAlias")
-                          keyPassword = keystoreProperties.getProperty("keyPassword")
-                          storeFile = file(keystoreProperties.getProperty("storeFile"))
-                          storePassword = keystoreProperties.getProperty("storePassword")
-                      }
-                  }
-              }
-              buildTypes {
-                  getByName("release") {
+                      // Load keystore properties for signing
+                      val keystorePropertiesFile = rootProject.file("key.properties")
+                      val keystoreProperties = java.util.Properties()
                       if (keystorePropertiesFile.exists()) {
-                          signingConfig = signingConfigs.getByName("release")
+                          keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+                          
+                          android {
+                              signingConfigs {
+                                  create("release") {
+                                      keyAlias = keystoreProperties.getProperty("keyAlias")
+                                      keyPassword = keystoreProperties.getProperty("keyPassword")
+                                      storeFile = file(keystoreProperties.getProperty("storeFile"))
+                                      storePassword = keystoreProperties.getProperty("storePassword")
+                                  }
+                              }
+                              buildTypes {
+                                  getByName("release") {
+                                      signingConfig = signingConfigs.getByName("release")
+                                  }
+                              }
+                          }
                       }
-                  }
-              }
-          }
-          EOF
+                      EOF
+                      echo "✅ Signing configuration added"
+                  else
+                      echo "⚠️ Signing configuration already exists, skipping"
+                  fi
 
-          # Apply the signing configuration to the main build file
-          echo "" >> src-tauri/gen/android/app/build.gradle.kts
-          echo "apply(from = \"signing.gradle.kts\")" >> src-tauri/gen/android/app/build.gradle.kts
+                  echo "✅ Android signing configured"
+              env:
+                  ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+                  ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+                  ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+                  ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-          echo "✅ Android signing configured"
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+            - name: Build Android Release
+              run: |
+                  cd src-tauri
+                  if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
+                      echo "🔨 Building signed release APK and AAB..."
+                  else
+                      echo "⚠️ No signing keys provided - building unsigned release"
+                  fi
 
-      - name: Build Android Release
-        run: |
-          cd src-tauri
-          if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
-              echo "🔨 Building signed release APK and AAB..."
-          else
-              echo "⚠️ No signing keys provided - building unsigned release"
-          fi
+                  cargo tauri android build --target aarch64 --verbose
 
-          cargo tauri android build --target aarch64 --verbose
+                  # Rename build files using script
+                  cd ..
+                  chmod +x rename-android-builds.sh
+                  ./rename-android-builds.sh
 
-          # Rename build files using script
-          cd ..
-          chmod +x rename-android-builds.sh
-          ./rename-android-builds.sh
+                  # List created files
+                  echo "📱 Created files:"
+                  ls -la *.apk *.aab 2>/dev/null || echo "No build files found"
+              env:
+                  ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+                  ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+                  ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+                  ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-          # List created files
-          echo "📱 Created files:"
-          ls -la *.apk *.aab 2>/dev/null || echo "No build files found"
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+            - name: Generate build timestamp
+              id: timestamp
+              run: echo "build_time=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
 
-      - name: Generate build timestamp
-        id: timestamp
-        run: echo "build_time=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: "android-v${{ needs.check-android-release.outputs.version }}"
+                  name: "Android Release v${{ needs.check-android-release.outputs.version }}"
+                  body: |
+                      ## 📱 Android Release v${{ needs.check-android-release.outputs.version }}
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "android-v${{ needs.check-android-release.outputs.version }}"
-          name: "Android Release v${{ needs.check-android-release.outputs.version }}"
-          body: |
-            ## 📱 Android Release v${{ needs.check-android-release.outputs.version }}
+                      This is an Android-specific release of mpesa2csv.
 
-            This is an Android-specific release of mpesa2csv.
+                      ### 📥 Download
 
-            ### 📥 Download
+                      - **Android APK**: Download the APK file below and install on your Android device
+                      - **Android AAB**: App Bundle for Google Play Store distribution
+                      - **Minimum Android Version**: Android 7.0 (API level 24)
+                      - **Architecture**: ARM64 (aarch64)
 
-            - **Android APK**: Download the APK file below and install on your Android device
-            - **Android AAB**: App Bundle for Google Play Store distribution
-            - **Minimum Android Version**: Android 7.0 (API level 24)
-            - **Architecture**: ARM64 (aarch64)
+                      ### 🔧 Installation
 
-            ### 🔧 Installation
+                      1. Download the APK file
+                      2. Enable "Install from unknown sources" in your Android settings
+                      3. Open the APK file to install
+                      4. Grant necessary permissions when prompted
 
-            1. Download the APK file
-            2. Enable "Install from unknown sources" in your Android settings
-            3. Open the APK file to install
-            4. Grant necessary permissions when prompted
+                      ### 📊 Build Information
 
-            ### 📊 Build Information
+                      - **Version**: `${{ needs.check-android-release.outputs.version }}`
+                      - **Build Date**: `${{ steps.timestamp.outputs.build_time }}`
+                      - **Target**: Android ARM64
+                      - **Signing**: ${{ env.ANDROID_KEYSTORE_BASE64 != '' && 'Release (Signed)' || 'Release (Unsigned)' }}
 
-            - **Version**: `${{ needs.check-android-release.outputs.version }}`
-            - **Build Date**: `${{ steps.timestamp.outputs.build_time }}`
-            - **Target**: Android ARM64
-            - **Signing**: ${{ env.ANDROID_KEYSTORE_BASE64 != '' && 'Release (Signed)' || 'Release (Unsigned)' }}
+                      ### ⚠️ Important Notes
 
-            ### ⚠️ Important Notes
+                      - This is a mobile version of the desktop application
+                      - Some features may be limited compared to the desktop version
+                      - Make sure to download from official sources only
 
-            - This is a mobile version of the desktop application
-            - Some features may be limited compared to the desktop version
-            - Make sure to download from official sources only
+                      ---
 
-            ---
+                      **Repository**: https://github.com/${{ github.repository }}
+                  files: |
+                      *.apk
+                      *.aab
+                  draft: false
+                  prerelease: false
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            **Repository**: https://github.com/${{ github.repository }}
-          files: |
-            *.apk
-            *.aab
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Upload Android artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: android-builds-v${{ needs.check-android-release.outputs.version }}
+                  path: |
+                      *.apk
+                      *.aab
+                  retention-days: 30
 
-      - name: Upload Android artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-builds-v${{ needs.check-android-release.outputs.version }}
-          path: |
-            *.apk
-            *.aab
-          retention-days: 30
+    # Step 3: Notify completion
+    notify-android-completion:
+        name: "Android Release Complete"
+        runs-on: ubuntu-latest
+        needs: [check-android-release, build-android]
+        if: always() && needs.check-android-release.outputs.should_release == 'true'
+        steps:
+            - name: Android release summary
+              run: |
+                  echo "🎉 Android Release v${{ needs.check-android-release.outputs.version }} completed!"
+                  echo "📱 APK built and published"
+                  echo "🔗 View release: https://github.com/${{ github.repository }}/releases/tag/android-v${{ needs.check-android-release.outputs.version }}"
 
-  # Step 3: Notify completion
-  notify-android-completion:
-    name: "Android Release Complete"
-    runs-on: ubuntu-latest
-    needs: [check-android-release, build-android]
-    if: always() && needs.check-android-release.outputs.should_release == 'true'
-    steps:
-      - name: Android release summary
-        run: |
-          echo "🎉 Android Release v${{ needs.check-android-release.outputs.version }} completed!"
-          echo "📱 APK built and published"
-          echo "🔗 View release: https://github.com/${{ github.repository }}/releases/tag/android-v${{ needs.check-android-release.outputs.version }}"
-
-          if [[ "${{ needs.build-android.result }}" == "success" ]]; then
-            echo "✅ Build successful"
-          else
-            echo "❌ Build failed - check logs above"
-            exit 1
-          fi
+                  if [[ "${{ needs.build-android.result }}" == "success" ]]; then
+                    echo "✅ Build successful"
+                  else
+                    echo "❌ Build failed - check logs above"
+                    exit 1
+                  fi

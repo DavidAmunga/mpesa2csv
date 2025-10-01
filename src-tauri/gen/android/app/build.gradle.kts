@@ -14,12 +14,11 @@ val tauriProperties = Properties().apply {
 }
 
 // Load keystore properties
-val keystorePropertiesFile = rootProject.file("../key.properties")
+val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
   keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
-
 
 android {
   compileSdk = 36
@@ -35,10 +34,10 @@ android {
   signingConfigs {
     if (keystorePropertiesFile.exists()) {
       create("release") {
-        keyAlias = keystoreProperties["keyAlias"] as String
-        keyPassword = keystoreProperties["keyPassword"] as String
-        storeFile = file(keystoreProperties["storeFile"] as String)
-        storePassword = keystoreProperties["storePassword"] as String
+        keyAlias = keystoreProperties.getProperty("keyAlias")
+        keyPassword = keystoreProperties.getProperty("keyPassword")
+        storeFile = file(keystoreProperties.getProperty("storeFile"))
+        storePassword = keystoreProperties.getProperty("storePassword")
       }
     }
   }
@@ -65,15 +64,9 @@ android {
     }
   }
 
-
-
-
   kotlinOptions {
     jvmTarget = "1.8"
   }
-
-
-
 
   buildFeatures {
     buildConfig = true
