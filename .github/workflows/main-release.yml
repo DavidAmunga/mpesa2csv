@@ -244,8 +244,8 @@ jobs:
   # Step 5: Build and release desktop
   build-and-release:
     name: "Build & Release"
-    needs: [check-release, prepare-release]
-    if: needs.check-release.outputs.should_release == 'true' && always()
+    needs: [check-release, prepare-release, build-android]
+    if: needs.check-release.outputs.should_release == 'true' && always() && (needs.build-android.result == 'success' || needs.build-android.result == 'skipped')
     permissions:
       contents: write
     strategy:
@@ -457,7 +457,7 @@ jobs:
         if: needs.build-android.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: android-builds-v${{ needs.prepare-release.outputs.version }}
+          name: mpesa2csv-v${{ needs.prepare-release.outputs.version }}
           path: ./android-artifacts/
         continue-on-error: true
 
@@ -508,6 +508,7 @@ jobs:
             | **Linux** | x64 (Ubuntu/Debian) | [📥 Download .deb](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.deb) | `sudo dpkg -i mpesa2csv_*.deb` |
             | **Linux** | x64 (Portable) | [📥 Download .AppImage](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.AppImage) | `chmod +x mpesa2csv_*.AppImage && ./mpesa2csv_*.AppImage` |
             ${{ needs.build-android.result == 'success' && format('| **Android** | ARM64 | [📥 Download .apk](https://github.com/DavidAmunga/mpesa2csv/releases/download/{0}/mpesa2csv-v{1}-universal-release.apk) | Enable "Install from unknown sources" and install', needs.prepare-release.outputs.tag, needs.prepare-release.outputs.version) || '' }}
+            ${{ needs.build-android.result == 'success' && format('| **Android** | ARM64 | [📥 Download .aab](https://github.com/DavidAmunga/mpesa2csv/releases/download/{0}/mpesa2csv-v{1}-universal-release.aab) | For Google Play Store or enterprise distribution', needs.prepare-release.outputs.tag, needs.prepare-release.outputs.version) || '' }}
 
             ### 📊 Release Metadata
 
@@ -581,7 +582,8 @@ jobs:
   notify-completion:
     name: "Release Complete"
     runs-on: ubuntu-latest
-    needs: [prepare-release, build-and-release, create-release-branch]
+    needs:
+      [prepare-release, build-android, build-and-release, create-release-branch]
     if: always() && needs.prepare-release.result == 'success'
     steps:
       - name: Release summary
