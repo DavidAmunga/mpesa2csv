@@ -251,13 +251,12 @@ jobs:
           echo "  APK: $APK_PATH"
           echo "  AAB: $AAB_PATH"
 
-
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mpesa2csv-v${{ needs.check-android-release.outputs.version }}
           path: |
-            *.apk
-            *.aab
+            src-tauri/*.apk
+            src-tauri/*.aab
           retention-days: 30
           if-no-files-found: warn

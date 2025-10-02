@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.5.3
+
+### Patch Changes
+
+- fix: android release
+
 ## 0.5.2
 
 ### Patch Changes
