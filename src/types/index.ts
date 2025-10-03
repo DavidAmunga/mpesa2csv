@@ -29,8 +29,8 @@ export enum ExportFormat {
 }
 
 export enum SortOrder {
-  DESC="desc",
-  ASC="asc",
+  DESC = "desc",
+  ASC = "asc",
 }
 
 export interface ExportOptions {
