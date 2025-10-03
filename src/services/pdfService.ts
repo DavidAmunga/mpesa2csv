@@ -247,8 +247,15 @@ export class PdfService {
 
       const receiptNo = receiptMatch[1].trim();
 
-      const timeMatch = block.match(/\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}/);
-      const completionTime = timeMatch ? timeMatch[0].trim() : "";
+      const dateMatch = block.match(/\d{4}-\d{2}-\d{2}/);
+      const timeMatch = block.match(/\d{2}:\d{2}:\d{2}/);
+
+      let completionTime = "";
+      if (dateMatch && timeMatch) {
+        completionTime = `${dateMatch[0]} ${timeMatch[0]}`;
+      } else if (dateMatch) {
+        completionTime = dateMatch[0];
+      }
 
       const statusPattern =
         /\b(COMPLETED|FAILED|PENDING|Completed|Failed|Pending)\b/gi;
@@ -261,45 +268,15 @@ export class PdfService {
 
       const status = lastStatusMatch ? lastStatusMatch[0].trim() : "Unknown";
 
-      let details = "";
-      if (timeMatch) {
-        const timeIndex = block.indexOf(timeMatch[0]) + timeMatch[0].length;
-
-        const amountPattern =
-          /\d+,?\d*\.\d{2}\s+\d+,?\d*\.\d{2}\s+\d+,?\d*\.\d{2}/;
-        const amountMatch = block.match(amountPattern);
-
-        if (amountMatch) {
-          const amountStartIndex = block.indexOf(amountMatch[0]);
-          const amountEndIndex = amountStartIndex + amountMatch[0].length;
-
-          const basicDetails = block
-            .substring(timeIndex, amountStartIndex)
-            .trim()
-            .replace(/\b(COMPLETED|FAILED|PENDING)\b/gi, "")
-            .trim();
-
-          const additionalDetails = block
-            .substring(amountEndIndex)
-            .trim()
-            .replace(/\b(COMPLETED|FAILED|PENDING)\b/gi, "")
-            .trim();
-
-          if (basicDetails && additionalDetails) {
-            details = `${basicDetails}\n${additionalDetails}`;
-          } else if (basicDetails) {
-            details = basicDetails;
-          } else if (additionalDetails) {
-            details = additionalDetails;
-          }
-        } else {
-          details = block
-            .substring(timeIndex)
-            .trim()
-            .replace(/\b(COMPLETED|FAILED|PENDING)\b/gi, "")
-            .trim();
-        }
-      }
+      // Extract details by removing receipt number, date/time, status, and amounts
+      let details = block
+        .replace(new RegExp(receiptNo, "g"), "")
+        .replace(/\d{4}-\d{2}-\d{2}/g, "")
+        .replace(/\d{2}:\d{2}:\d{2}/g, "")
+        .replace(/\b(COMPLETED|FAILED|PENDING)\b/gi, "")
+        .replace(/[-]?[\d,]+\.\d{2}/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
 
       if (!details.trim()) {
         details = this.extractDetailsFromBlock(
@@ -363,17 +340,18 @@ export class PdfService {
 
           if (
             details.toLowerCase().includes("business payment from") ||
+            details.toLowerCase().includes("merchant payment from") ||
             details.toLowerCase().includes("received") ||
-            (details.toLowerCase().includes("customer transfer") &&
-              parsedAmounts[0] > 0)
+            details.toLowerCase().includes("customer transfer") ||
+            details.toLowerCase().includes("b2c payment")
           ) {
             paidIn = parsedAmounts[0];
             if (parsedAmounts.length > 2) {
               withdrawn =
                 parsedAmounts[1] === balance ? null : parsedAmounts[1];
             }
-            } else {
-              withdrawn = parsedAmounts[0];
+          } else {
+            withdrawn = parsedAmounts[0];
             if (parsedAmounts.length > 2) {
               paidIn = parsedAmounts[1] === balance ? null : parsedAmounts[1];
             }
@@ -384,7 +362,10 @@ export class PdfService {
 
           if (
             details.toLowerCase().includes("business payment from") ||
-            details.toLowerCase().includes("received")
+            details.toLowerCase().includes("merchant payment from") ||
+            details.toLowerCase().includes("received") ||
+            details.toLowerCase().includes("customer transfer") ||
+            details.toLowerCase().includes("b2c payment")
           ) {
             paidIn = firstAmount;
           } else {
@@ -414,6 +395,7 @@ export class PdfService {
 
             if (
               details.toLowerCase().includes("business payment from") ||
+              details.toLowerCase().includes("merchant payment from") ||
               details.toLowerCase().includes("funds received") ||
               details.toLowerCase().includes("customer transfer") ||
               details.toLowerCase().includes("b2c payment")
@@ -426,10 +408,12 @@ export class PdfService {
         }
       }
 
+      let finalDetails = details.replace(/Disclaimer:[\s\S]*$/, "").trim();
+
       const transaction: Transaction = {
         receiptNo,
         completionTime,
-        details,
+        details: finalDetails,
         transactionStatus: status,
         paidIn,
         withdrawn,
