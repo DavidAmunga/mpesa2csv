@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.5.4
+
+### Patch Changes
+
+- 9497a3a: fix: datetime parsing for paybill statements
+
 ## 0.5.3
 
 ### Patch Changes
