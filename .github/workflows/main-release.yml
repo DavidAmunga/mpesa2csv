@@ -509,7 +509,6 @@ jobs:
             | **Linux** | x64 (Ubuntu/Debian) | [📥 Download .deb](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.deb) | `sudo dpkg -i mpesa2csv_*.deb` |
             | **Linux** | x64 (Portable) | [📥 Download .AppImage](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.AppImage) | `chmod +x mpesa2csv_*.AppImage && ./mpesa2csv_*.AppImage` |
             ${{ needs.build-android.result == 'success' && format('| **Android** | ARM64 | [📥 Download .apk](https://github.com/DavidAmunga/mpesa2csv/releases/download/{0}/mpesa2csv-v{1}-universal-release.apk) | Enable "Install from unknown sources" and install', needs.prepare-release.outputs.tag, needs.prepare-release.outputs.version) || '' }}
-            ${{ needs.build-android.result == 'success' && format('| **Android** | ARM64 | [📥 Download .aab](https://github.com/DavidAmunga/mpesa2csv/releases/download/{0}/mpesa2csv-v{1}-universal-release.aab) | For Google Play Store or enterprise distribution', needs.prepare-release.outputs.tag, needs.prepare-release.outputs.version) || '' }}
 
             ### 📊 Release Metadata
 
