@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.5.5
+
+### Patch Changes
+
+- 307a7b2: fix: minor app improvements
+
 ## 0.5.4
 
 ### Patch Changes
