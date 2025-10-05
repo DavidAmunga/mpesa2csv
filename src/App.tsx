@@ -1,4 +1,8 @@
 import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { platform } from "@tauri-apps/plugin-os";
+import { Download, RotateCcw, ExternalLink, FolderOpen } from "lucide-react";
+
 import {
   MPesaStatement,
   FileStatus,
@@ -11,10 +15,8 @@ import FileUploader from "./components/file-uploader";
 import PasswordPrompt from "./components/password-prompt";
 import ExportOptions from "./components/export-options";
 import { UpdateChecker } from "./components/update-checker";
-import { Download, RotateCcw, ExternalLink } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
-import dayjs from "dayjs";
 import { Button } from "./components/ui/button";
+import { formatDateForFilename } from "./utils/helpers";
 
 function App() {
   const [files, setFiles] = useState<File[]>([]);
@@ -37,9 +39,23 @@ function App() {
   const [appVersion, setAppVersion] = useState<string>("");
   const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
   const [savedFilePath, setSavedFilePath] = useState<string>("");
+  const [currentPlatform, setCurrentPlatform] = useState<string>("");
 
-  const formatDateForFilename = (): string => {
-    return dayjs().format("YYYY-MM-DD_HH-mm-ss");
+  const getDefaultFileName = () => {
+    return (
+      exportFileName ||
+      `mpesa_statement.${ExportService.getFileExtension(exportFormat)}`
+    );
+  };
+
+  const prepareFileContent = async (statement: MPesaStatement) => {
+    const arrayBuffer = await ExportService.getFileBuffer(
+      statement,
+      exportFormat,
+      exportOptions
+    );
+    const content = new Uint8Array(arrayBuffer);
+    return Array.from(content);
   };
 
   const handleFormatChange = (format: ExportFormat) => {
@@ -65,18 +81,22 @@ function App() {
       .catch(() => setExportLink(""));
   };
 
-  // Get app version on component mount
   useEffect(() => {
-    const getVersion = async () => {
+    const initializeApp = async () => {
       try {
-        const version = await invoke<string>("get_app_version");
+        const [version, platformName] = await Promise.all([
+          invoke<string>("get_app_version"),
+          platform(),
+        ]);
         setAppVersion(version);
+        setCurrentPlatform(platformName);
       } catch (error) {
-        console.error("Failed to get app version:", error);
         setAppVersion("unknown");
+        setCurrentPlatform("unknown");
       }
     };
-    getVersion();
+
+    initializeApp();
   }, []);
 
   const handleFilesSelected = async (selectedFiles: File[]) => {
@@ -164,7 +184,6 @@ function App() {
         formatDateForFilename()
       );
 
-      // Generate download link asynchronously
       ExportService.createDownloadLink(
         combinedStatement,
         exportFormat,
@@ -256,16 +275,13 @@ function App() {
     const nextIndex = currentFileIndex + 1;
 
     if (nextIndex < files.length) {
-      // Continue processing remaining files
       const result = await processFiles(files, nextIndex, statements);
       if (result?.error) {
         setStatus(FileStatus.ERROR);
         setError(result.error);
       }
     } else {
-      // No more files to process
       if (statements.length > 0) {
-        // We have some processed statements, show success
         const combinedStatement = combineStatements(statements);
         const fileName = ExportService.getFileName(
           combinedStatement,
@@ -283,16 +299,11 @@ function App() {
         setExportFileName(fileName);
         setStatus(FileStatus.SUCCESS);
       } else {
-        // No statements processed, reset to idle
         setStatus(FileStatus.IDLE);
         setFiles([]);
         setCurrentFileIndex(0);
       }
     }
-  };
-
-  const handleResetProcess = () => {
-    handleReset();
   };
 
   const handleReset = () => {
@@ -312,13 +323,6 @@ function App() {
     }
   };
 
-  const getDefaultFileName = () => {
-    return (
-      exportFileName ||
-      `mpesa_statement.${ExportService.getFileExtension(exportFormat)}`
-    );
-  };
-
   const handleDownloadError = (error: any) => {
     const errorMessage =
       typeof error === "string" ? error : error.message || error.toString();
@@ -336,16 +340,6 @@ function App() {
     }
   };
 
-  const prepareFileContent = async (statement: MPesaStatement) => {
-    const arrayBuffer = await ExportService.getFileBuffer(
-      statement,
-      exportFormat,
-      exportOptions
-    );
-    const content = new Uint8Array(arrayBuffer);
-    return Array.from(content);
-  };
-
   const handleDownload = async () => {
     if (statements.length === 0 || isDownloading) return;
 
@@ -354,19 +348,54 @@ function App() {
 
     try {
       const combinedStatement = statements[0];
-      const contentArray = await prepareFileContent(combinedStatement);
+      const fileName = getDefaultFileName();
 
-      const invokeParams = {
-        content: contentArray,
-        defaultFilename: getDefaultFileName(),
-        fileType: ExportService.getFileExtension(exportFormat),
-      };
+      if (currentPlatform === "android") {
+        const arrayBuffer = await ExportService.getFileBuffer(
+          combinedStatement,
+          exportFormat,
+          exportOptions
+        );
 
-      const result = await invoke<string>("save_file", invokeParams);
+        const mimeType =
+          exportFormat === ExportFormat.CSV
+            ? "text/csv"
+            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-      setError(undefined);
-      setDownloadSuccess(true);
-      setSavedFilePath(result);
+        const dataArray = Array.from(new Uint8Array(arrayBuffer));
+
+        const result = await invoke<{
+          fileName: string;
+          path?: string;
+          uri?: string;
+        }>("plugin:pldownloader|save_file_public_from_buffer", {
+          payload: {
+            data: dataArray,
+            fileName: fileName,
+            mimeType: mimeType,
+          },
+        });
+
+        setError(undefined);
+        setDownloadSuccess(true);
+
+        const filePath = result.path || result.uri || fileName;
+        setSavedFilePath(filePath);
+      } else {
+        const contentArray = await prepareFileContent(combinedStatement);
+
+        const invokeParams = {
+          content: contentArray,
+          defaultFilename: fileName,
+          fileType: ExportService.getFileExtension(exportFormat),
+        };
+
+        const result = await invoke<string>("save_file", invokeParams);
+
+        setError(undefined);
+        setDownloadSuccess(true);
+        setSavedFilePath(result);
+      }
     } catch (error: any) {
       handleDownloadError(error);
     } finally {
@@ -377,15 +406,31 @@ function App() {
   const handleOpenFile = async () => {
     try {
       if (savedFilePath) {
-        const filePath = savedFilePath.replace(
-          "File saved successfully to: ",
-          ""
-        );
-        await invoke("open_file", { path: filePath });
+        await invoke("open_file", {
+          path: savedFilePath,
+          file_type: ExportService.getFileExtension(exportFormat),
+        });
       }
     } catch (error: any) {
-      console.error("Failed to open file:", error);
       setError(`Failed to open file: ${error.message || error.toString()}`);
+    }
+  };
+
+  const handleOpenFolder = async () => {
+    try {
+      if (savedFilePath) {
+        let folderPath = savedFilePath;
+
+        if (currentPlatform === "android") {
+          folderPath = "/storage/emulated/0/Download";
+        } else {
+          folderPath = savedFilePath;
+        }
+
+        await invoke("open_folder", { path: folderPath });
+      }
+    } catch (error: any) {
+      setError(`Failed to open folder: ${error.message || error.toString()}`);
     }
   };
 
@@ -422,7 +467,7 @@ function App() {
                 <PasswordPrompt
                   onPasswordSubmit={handlePasswordSubmit}
                   onSkip={handleSkipFile}
-                  onReset={handleResetProcess}
+                  onReset={handleReset}
                   status={status}
                   error={error}
                   currentFileName={files[currentFileIndex]?.name}
@@ -486,7 +531,7 @@ function App() {
                       )}
                     </Button>
                   ) : (
-                    <div className="flex flex-col items-center gap-3">
+                    <div className="flex flex-row items-center gap-1">
                       <Button
                         onClick={handleOpenFile}
                         variant="outline"
@@ -495,6 +540,15 @@ function App() {
                       >
                         <ExternalLink className="w-5 h-5" />
                         Open File
+                      </Button>
+                      <Button
+                        onClick={handleOpenFolder}
+                        variant="outline"
+                        size="lg"
+                        className="px-6 text-foreground"
+                      >
+                        <FolderOpen className="w-5 h-5" />
+                        Open Folder
                       </Button>
                     </div>
                   )}
@@ -516,11 +570,7 @@ function App() {
                   </p>
                   {downloadSuccess && savedFilePath && (
                     <p className="text-xs text-center mt-1 truncate">
-                      Saved to:{" "}
-                      {savedFilePath.replace(
-                        "File saved successfully to: ",
-                        ""
-                      )}
+                      Saved to: {savedFilePath}
                     </p>
                   )}
                 </div>

@@ -13,6 +13,16 @@
     "updater:default",
     "updater:allow-check",
     "process:default",
-    "process:allow-restart"
+    "process:allow-restart",
+    "pldownloader:allow-save-file-public-from-buffer",
+    "pldownloader:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
+    }
   ]
 }
