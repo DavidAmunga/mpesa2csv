@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { platform } from "@tauri-apps/plugin-os";
-import { Download, RotateCcw, ExternalLink, FolderOpen } from "lucide-react";
+import { Download, RotateCcw, ExternalLink } from "lucide-react";
 
 import {
   MPesaStatement,
