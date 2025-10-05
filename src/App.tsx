@@ -406,31 +406,14 @@ function App() {
   const handleOpenFile = async () => {
     try {
       if (savedFilePath) {
-        await invoke("open_file", {
-          path: savedFilePath,
-          file_type: ExportService.getFileExtension(exportFormat),
-        });
+        const filePath = savedFilePath.replace(
+          "File saved successfully to: ",
+          ""
+        );
+        await invoke("open_file", { path: filePath });
       }
     } catch (error: any) {
       setError(`Failed to open file: ${error.message || error.toString()}`);
-    }
-  };
-
-  const handleOpenFolder = async () => {
-    try {
-      if (savedFilePath) {
-        let folderPath = savedFilePath;
-
-        if (currentPlatform === "android") {
-          folderPath = "/storage/emulated/0/Download";
-        } else {
-          folderPath = savedFilePath;
-        }
-
-        await invoke("open_folder", { path: folderPath });
-      }
-    } catch (error: any) {
-      setError(`Failed to open folder: ${error.message || error.toString()}`);
     }
   };
 
@@ -540,15 +523,6 @@ function App() {
                       >
                         <ExternalLink className="w-5 h-5" />
                         Open File
-                      </Button>
-                      <Button
-                        onClick={handleOpenFolder}
-                        variant="outline"
-                        size="lg"
-                        className="px-6 text-foreground"
-                      >
-                        <FolderOpen className="w-5 h-5" />
-                        Open Folder
                       </Button>
                     </div>
                   )}

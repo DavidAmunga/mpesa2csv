@@ -86,9 +86,6 @@ importers:
       tauri-plugin-pldownloader-api:
         specifier: ^1.0.1
         version: 1.0.1
-      tauri-plugin-safe-area-insets:
-        specifier: ^0.1.0
-        version: 0.1.0
       zustand:
         specifier: ^5.0.8
         version: 5.0.8(@types/react@19.1.13)(react@19.1.1)
@@ -2002,9 +1999,6 @@ packages:
 
   tauri-plugin-pldownloader-api@1.0.1:
     resolution: {integrity: sha512-t7gXkHPkozEHJLJh21RGQOem0US0kiFqEhE+8ugvCcI4Mk60IF1e8hJoADWyUZp/J3jR+HHM4WBP/H1tcjfJvw==}
-
-  tauri-plugin-safe-area-insets@0.1.0:
-    resolution: {integrity: sha512-NhtxSQdU7+laTJiO4WZFlTB1CBzRlNE5EuHflGAGXS55fiwOkkaWztfNishFQO+eZtb9i5jLHX3Yho48lnqcRQ==}
 
   term-size@2.2.1:
     resolution: {integrity: sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg==}
@@ -3952,10 +3946,6 @@ snapshots:
       yallist: 5.0.0
 
   tauri-plugin-pldownloader-api@1.0.1:
-    dependencies:
-      '@tauri-apps/api': 2.8.0
-
-  tauri-plugin-safe-area-insets@0.1.0:
     dependencies:
       '@tauri-apps/api': 2.8.0
 
