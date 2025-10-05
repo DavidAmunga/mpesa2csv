@@ -84,18 +84,16 @@ function App() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        const [version, platformName] = await Promise.all([
+        const [version] = await Promise.all([
           invoke<string>("get_app_version"),
-          platform(),
+          // platform(),
         ]);
         setAppVersion(version);
-        setCurrentPlatform(platformName);
+        setCurrentPlatform(platform());
       } catch (error) {
-        setAppVersion("unknown");
-        setCurrentPlatform("unknown");
+        console.error("Failed to initialize app:", error);
       }
     };
-
     initializeApp();
   }, []);
 

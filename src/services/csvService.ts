@@ -1,6 +1,7 @@
 import { MPesaStatement, ExportOptions } from "../types";
 import Papa from "papaparse";
 import { applyTransactionFilters } from "./transactionFilters";
+import { formatDate } from "../utils/dateFormatter";
 
 export class CsvService {
   static convertStatementToCsv(
@@ -13,7 +14,10 @@ export class CsvService {
     const transactionsData = filteredStatement.transactions.map(
       (transaction) => ({
         "Receipt No": transaction.receiptNo,
-        "Completion Time": transaction.completionTime,
+        "Completion Time": formatDate(
+          transaction.completionTime,
+          options?.dateFormat
+        ),
         Details: transaction.details,
         "Transaction Status": transaction.transactionStatus,
         "Paid In": transaction.paidIn !== null ? transaction.paidIn : "",

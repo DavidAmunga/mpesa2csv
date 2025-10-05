@@ -33,6 +33,12 @@ export enum SortOrder {
   ASC = "asc",
 }
 
+export enum DateFormat {
+  ISO_FORMAT = "iso_format",
+  DD_MMM_YYYY = "dd_mmm_yyyy",
+  DD_MMM_YYYY_SLASH = "dd_mmm_yyyy_slash",
+}
+
 export interface ExportOptions {
   includeChargesSheet?: boolean;
   includeSummarySheet?: boolean;
@@ -42,4 +48,6 @@ export interface ExportOptions {
   // Filter options
   filterOutCharges?: boolean;
   sortOrder?: SortOrder;
+  // Date format options
+  dateFormat?: DateFormat;
 }

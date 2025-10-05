@@ -101,7 +101,7 @@ export function UpdateChecker({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background rounded-lg shadow-xl max-w-md w-full mx-4 border">
+      <div className="bg-zinc-800 rounded-lg shadow-xl max-w-md w-full mx-4 border">
         <div className="p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-primary/10 rounded-full">
@@ -109,9 +109,7 @@ export function UpdateChecker({
             </div>
             <div>
               <h3 className="text-lg font-semibold">Update Available</h3>
-              <p className="text-sm text-muted-foreground">
-                Version {updateInfo.version}
-              </p>
+              <p className="text-sm">Version {updateInfo.version}</p>
             </div>
             <Button
               onClick={dismissUpdate}
@@ -126,7 +124,7 @@ export function UpdateChecker({
 
           <div className="mb-6">
             <h4 className="font-medium mb-2">What's New:</h4>
-            <div className="text-sm text-muted-foreground bg-muted rounded p-3 max-h-32 overflow-y-auto">
+            <div className="text-sm rounded p-3 max-h-32 overflow-y-auto">
               {updateInfo.body.split("\n").map((line, index) => (
                 <p key={index} className="mb-1">
                   {line}
@@ -139,7 +137,7 @@ export function UpdateChecker({
             <Button
               onClick={dismissUpdate}
               variant="outline"
-              className="flex-1"
+              className="flex-1 text-zinc-800"
               disabled={isUpdating}
             >
               Later

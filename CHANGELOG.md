@@ -1,5 +1,12 @@
 # mpesa2csv
 
+## 0.6.0
+
+### Minor Changes
+
+- feat: added date formatter to filter options
+- fix: save file dialog not working on windows
+
 ## 0.5.5
 
 ### Patch Changes

@@ -2,6 +2,7 @@ import {
   ExportFormat,
   ExportOptions as ExportOptionsType,
   SortOrder,
+  DateFormat,
 } from "../types";
 import { ExportService } from "../services/exportService";
 import {
@@ -15,6 +16,10 @@ import { Checkbox } from "./ui/checkbox";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
 import { Label } from "./ui/label";
 import { Info } from "lucide-react";
+import {
+  getDateFormatDisplayName,
+  getAllDateFormats,
+} from "../utils/dateFormatter";
 
 interface ExportOptionsProps {
   exportFormat: ExportFormat;
@@ -96,6 +101,14 @@ export default function ExportOptions({
     onOptionsChange(newOptions);
   };
 
+  const handleDateFormatChange = (value: DateFormat) => {
+    const newOptions = {
+      ...exportOptions,
+      dateFormat: value,
+    };
+    onOptionsChange(newOptions);
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -167,6 +180,32 @@ export default function ExportOptions({
                   Most Recent First
                 </SelectItem>
                 <SelectItem value={SortOrder.ASC}>Oldest First</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Date Format */}
+          <div>
+            <Label className="block text-sm font-medium mb-2">
+              Date Format
+            </Label>
+            <Select
+              value={exportOptions.dateFormat || DateFormat.ISO_FORMAT}
+              onValueChange={handleDateFormatChange}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select date format">
+                  {getDateFormatDisplayName(
+                    exportOptions.dateFormat || DateFormat.ISO_FORMAT
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {getAllDateFormats().map((format) => (
+                  <SelectItem key={format} value={format}>
+                    {getDateFormatDisplayName(format)}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

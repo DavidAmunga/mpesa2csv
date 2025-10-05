@@ -8,6 +8,7 @@ import {
   addTransactionAmountDistributionSheet,
 } from "./exports";
 import { applyTransactionFilters } from "./transactionFilters";
+import { formatDate } from "../utils/dateFormatter";
 
 export class XlsxService {
   static async convertStatementToXlsx(
@@ -54,7 +55,10 @@ export class XlsxService {
     filteredStatement.transactions.forEach((transaction) => {
       worksheet.addRow({
         receiptNo: transaction.receiptNo,
-        completionTime: transaction.completionTime,
+        completionTime: formatDate(
+          transaction.completionTime,
+          options?.dateFormat
+        ),
         details: transaction.details,
         transactionStatus: transaction.transactionStatus,
         paidIn: transaction.paidIn !== null ? transaction.paidIn : "",
