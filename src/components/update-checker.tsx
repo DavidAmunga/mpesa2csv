@@ -37,10 +37,32 @@ export function UpdateChecker({
       const update = await check();
       if (update) {
         setUpdateAvailable(true);
+
+        let releaseNotes = update.body || "No release notes available.";
+
+        if (releaseNotes.includes("See full release notes at")) {
+          try {
+            const response = await fetch(
+              `https://api.github.com/repos/DavidAmunga/mpesa2csv/releases/latest`
+            );
+            if (response.ok) {
+              const releaseData = await response.json();
+              if (releaseData.body && releaseData.body.trim()) {
+                releaseNotes = releaseData.body;
+              }
+            }
+          } catch (apiError) {
+            console.warn(
+              "Failed to fetch release notes from GitHub API:",
+              apiError
+            );
+          }
+        }
+
         setUpdateInfo({
           version: update.version,
           date: update.date || "Unknown",
-          body: update.body || "No release notes available.",
+          body: releaseNotes,
         });
         setShowDialog(true);
       }
@@ -124,12 +146,54 @@ export function UpdateChecker({
 
           <div className="mb-6">
             <h4 className="font-medium mb-2">What's New:</h4>
-            <div className="text-sm rounded p-3 max-h-32 overflow-y-auto">
-              {updateInfo.body.split("\n").map((line, index) => (
-                <p key={index} className="mb-1">
-                  {line}
-                </p>
-              ))}
+            <div className="text-sm bg-zinc-900 rounded p-3 max-h-32 overflow-y-auto">
+              {updateInfo.body.split("\n").map((line, index) => {
+                let formattedLine = line;
+
+                if (line.startsWith("## ")) {
+                  formattedLine = line.replace("## ", "");
+                  return (
+                    <p key={index} className="mb-2 font-semibold text-primary">
+                      {formattedLine}
+                    </p>
+                  );
+                }
+
+                if (line.startsWith("### ")) {
+                  formattedLine = line.replace("### ", "");
+                  return (
+                    <p key={index} className="mb-1 font-medium">
+                      {formattedLine}
+                    </p>
+                  );
+                }
+
+                if (line.startsWith("- ")) {
+                  formattedLine = line.replace("- ", "• ");
+                  return (
+                    <p key={index} className="mb-1 ml-2">
+                      {formattedLine}
+                    </p>
+                  );
+                }
+
+                formattedLine = formattedLine.replace(
+                  /\*\*(.*?)\*\*/g,
+                  "<strong>$1</strong>"
+                );
+
+                if (line.trim() === "") {
+                  return <br key={index} />;
+                }
+
+                return (
+                  <p
+                    key={index}
+                    className="mb-1"
+                    dangerouslySetInnerHTML={{ __html: formattedLine }}
+                  />
+                );
+              })}
             </div>
           </div>
 

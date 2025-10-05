@@ -481,7 +481,7 @@ jobs:
           releaseName: "mpesa2csv ${{ needs.prepare-release.outputs.tag }}"
           includeUpdaterJson: true
           releaseBody: |
-            ## 🚀 What's New in v${{ needs.prepare-release.outputs.version }}
+            ## What's New in v${{ needs.prepare-release.outputs.version }}
 
             ${{ steps.changelog.outputs.total_changes > 0 && format('📊 **Release Summary**: {0} changes', steps.changelog.outputs.total_changes) || '' }}
 
@@ -585,28 +585,40 @@ jobs:
           VERSION="${{ needs.prepare-release.outputs.version }}"
           TAG="${{ needs.prepare-release.outputs.tag }}"
 
-          # Create the latest.json file
+          # Create the latest.json file with proper Tauri updater format
+          # Try to get release notes from the GitHub API
+          RELEASE_NOTES="Update to version $VERSION. See full release notes at https://github.com/${{ github.repository }}/releases/tag/$TAG"
+
+          # Try to fetch release notes from GitHub API
+          if command -v gh &> /dev/null; then
+            GITHUB_NOTES=$(gh api repos/${{ github.repository }}/releases/latest --jq '.body' 2>/dev/null || echo "")
+            if [ -n "$GITHUB_NOTES" ] && [ "$GITHUB_NOTES" != "null" ]; then
+              # Truncate if too long and clean up markdown
+              RELEASE_NOTES=$(echo "$GITHUB_NOTES" | head -20 | sed 's/^## /## /g' | sed 's/^### /### /g')
+            fi
+          fi
+
           cat > latest.json << EOF
           {
             "version": "$VERSION",
-            "notes": "Update to version $VERSION. See full release notes at https://github.com/${{ github.repository }}/releases/tag/$TAG",
+            "notes": "$RELEASE_NOTES",
             "pub_date": "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")",
             "platforms": {
               "darwin-aarch64": {
                 "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_aarch64.app.tar.gz"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_aarch64.app.tar.gz"
               },
               "darwin-x86_64": {
                 "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64.app.tar.gz"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_x64.app.tar.gz"
               },
               "linux-x86_64": {
                 "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_amd64.AppImage.tar.gz"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_amd64.AppImage"
               },
               "windows-x86_64": {
                 "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64-setup.nsis.zip"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64-setup.exe"
               }
             }
           }
@@ -624,6 +636,10 @@ jobs:
           echo "🔍 Verifying latest.json is accessible..."
           sleep 5  # Give GitHub a moment to process
           curl -f "https://github.com/${{ github.repository }}/releases/download/$TAG/latest.json" || echo "⚠️ latest.json not yet accessible"
+
+          # Also verify the GitHub API endpoint works
+          echo "🔍 Verifying GitHub API endpoint..."
+          curl -f "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq '.tag_name, .assets[] | select(.name == "latest.json") | .browser_download_url' || echo "⚠️ GitHub API endpoint not accessible"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
