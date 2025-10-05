@@ -463,6 +463,7 @@ jobs:
 
       - name: Build and release Tauri app
         uses: tauri-apps/tauri-action@v0
+        id: tauri-action
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -567,10 +568,71 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Step 6: Create release branch for hotfixes
+  # Step 6: Generate and upload updater JSON
+  generate-updater-json:
+    name: "Generate Updater JSON"
+    needs: [check-release, prepare-release, build-and-release]
+    if: needs.check-release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate and upload latest.json
+        run: |
+          echo "🔄 Generating latest.json for Tauri updater..."
+
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          TAG="${{ needs.prepare-release.outputs.tag }}"
+
+          # Create the latest.json file
+          cat > latest.json << EOF
+          {
+            "version": "$VERSION",
+            "notes": "Update to version $VERSION. See full release notes at https://github.com/${{ github.repository }}/releases/tag/$TAG",
+            "pub_date": "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_aarch64.app.tar.gz"
+              },
+              "darwin-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64.app.tar.gz"
+              },
+              "linux-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_amd64.AppImage.tar.gz"
+              },
+              "windows-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64-setup.nsis.zip"
+              }
+            }
+          }
+          EOF
+
+          echo "📄 Generated latest.json:"
+          cat latest.json
+
+          # Upload to the release
+          echo "📤 Uploading latest.json to release $TAG..."
+          gh release upload "$TAG" latest.json --clobber
+          echo "✅ latest.json uploaded successfully"
+
+          # Verify the file is accessible
+          echo "🔍 Verifying latest.json is accessible..."
+          sleep 5  # Give GitHub a moment to process
+          curl -f "https://github.com/${{ github.repository }}/releases/download/$TAG/latest.json" || echo "⚠️ latest.json not yet accessible"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Step 7: Create release branch for hotfixes
   create-release-branch:
     name: "Create Release Branch"
-    needs: [check-release, prepare-release, build-and-release]
+    needs:
+      [check-release, prepare-release, build-and-release, generate-updater-json]
     if: needs.check-release.outputs.should_release == 'true'
     uses: ./.github/workflows/reusable-create-release-branch.yml
     with:
@@ -578,12 +640,18 @@ jobs:
       max_branches: 5
     secrets: inherit
 
-  # Step 7: Notify about release completion
+  # Step 8: Notify about release completion
   notify-completion:
     name: "Release Complete"
     runs-on: ubuntu-latest
     needs:
-      [prepare-release, build-android, build-and-release, create-release-branch]
+      [
+        prepare-release,
+        build-android,
+        build-and-release,
+        generate-updater-json,
+        create-release-branch,
+      ]
     if: always() && needs.prepare-release.result == 'success'
     steps:
       - name: Release summary
