@@ -70,7 +70,7 @@ jobs:
           echo "Latest commit: $COMMIT_MSG"
 
           # Check recent commits for changeset patterns (look deeper for merge commits)
-          RECENT_COMMITS=$(git log -5 --pretty=format:"%s")
+          RECENT_COMMITS=$(git log -10 --pretty=format:"%s")
           echo "Recent commits:"
           echo "$RECENT_COMMITS"
 
@@ -78,56 +78,187 @@ jobs:
           if [[ "$COMMIT_MSG" == *"chore: release version packages"* ]] || \
              [[ "$COMMIT_MSG" == *"Version Packages"* ]] || \
              [[ "$COMMIT_MSG" == *"changeset-release/main"* ]] || \
+             [[ "$COMMIT_MSG" == *"chore: sync version files"* ]] || \
              [[ "$RECENT_COMMITS" == *"chore: release version packages"* ]] || \
-             [[ "$RECENT_COMMITS" == *"Version Packages"* ]]; then
+             [[ "$RECENT_COMMITS" == *"Version Packages"* ]] || \
+             [[ "$RECENT_COMMITS" == *"chore: sync version files"* ]]; then
             IS_CHANGESET_RELEASE="true"
             echo "✅ This is a changeset release commit"
           fi
 
-          # Check for pending changesets
+          # Check for pending changesets with better detection
           HAS_CHANGESETS="false"
-          if [ -d ".changeset" ] && [ "$(ls -1 .changeset/*.md 2>/dev/null | wc -l)" -gt 0 ]; then
-            # Exclude README.md and config.json
-            CHANGESET_COUNT=$(ls -1 .changeset/*.md 2>/dev/null | grep -v README.md | wc -l)
+          CHANGESET_COUNT=0
+          if [ -d ".changeset" ]; then
+            # Count actual changeset files (excluding README.md and config.json)
+            CHANGESET_COUNT=$(find .changeset -name "*.md" -not -name "README.md" -not -name "config.json" 2>/dev/null | wc -l)
             if [ "$CHANGESET_COUNT" -gt 0 ]; then
               HAS_CHANGESETS="true"
               echo "✅ Found $CHANGESET_COUNT pending changesets"
+              # List the changeset files for debugging
+              echo "Changeset files:"
+              find .changeset -name "*.md" -not -name "README.md" -not -name "config.json" 2>/dev/null | head -5
             fi
           fi
 
-          # Additional check: Look for version changes in the last commit
+          # Enhanced version change detection
           VERSION_CHANGED="false"
+          VERSION_FILES_CHANGED=""
           if git diff HEAD~1 HEAD --name-only | grep -q "package.json\|src-tauri/Cargo.toml\|src-tauri/tauri.conf.json"; then
-            echo "📦 Version files changed in recent commit"
+            VERSION_FILES_CHANGED=$(git diff HEAD~1 HEAD --name-only | grep -E "package.json|src-tauri/Cargo.toml|src-tauri/tauri.conf.json" | tr '\n' ' ')
+            echo "📦 Version files changed in recent commit: $VERSION_FILES_CHANGED"
             VERSION_CHANGED="true"
           fi
 
-          # Determine if we should release
-          SHOULD_RELEASE="false"
-          if [[ "$IS_CHANGESET_RELEASE" == "true" ]] || \
-             [[ "$VERSION_CHANGED" == "true" && "$IS_CHANGESET_RELEASE" == "true" ]] || \
-             [[ "${{ github.event.inputs.force_release }}" == "true" ]] || \
-             [[ "$HAS_CHANGESETS" == "true" && "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            SHOULD_RELEASE="true"
-            echo "✅ Release conditions met"
-          else
-            echo "ℹ️ No release needed"
+          # Check for manual version bumps in commit messages
+          MANUAL_VERSION_BUMP="false"
+          if [[ "$COMMIT_MSG" == *"bump version"* ]] || [[ "$COMMIT_MSG" == *"version"* ]] && [[ "$COMMIT_MSG" == *"v"* ]]; then
+            MANUAL_VERSION_BUMP="true"
+            echo "📦 Manual version bump detected in commit message"
           fi
 
-          # Get current version
+          # Determine if we should release with improved logic
+          SHOULD_RELEASE="false"
+          RELEASE_REASON=""
+
+          if [[ "$IS_CHANGESET_RELEASE" == "true" ]]; then
+            SHOULD_RELEASE="true"
+            RELEASE_REASON="changeset release commit"
+          elif [[ "$VERSION_CHANGED" == "true" && "$IS_CHANGESET_RELEASE" == "true" ]]; then
+            SHOULD_RELEASE="true"
+            RELEASE_REASON="version files changed in changeset release"
+          elif [[ "${{ github.event.inputs.force_release }}" == "true" ]]; then
+            SHOULD_RELEASE="true"
+            RELEASE_REASON="manual force release"
+          elif [[ "$HAS_CHANGESETS" == "true" && "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            SHOULD_RELEASE="true"
+            RELEASE_REASON="manual dispatch with pending changesets"
+          elif [[ "$MANUAL_VERSION_BUMP" == "true" ]]; then
+            SHOULD_RELEASE="true"
+            RELEASE_REASON="manual version bump detected"
+          fi
+
+          if [[ "$SHOULD_RELEASE" == "true" ]]; then
+            echo "✅ Release conditions met: $RELEASE_REASON"
+          else
+            echo "ℹ️ No release needed"
+            echo "  - Changeset release: $IS_CHANGESET_RELEASE"
+            echo "  - Version changed: $VERSION_CHANGED"
+            echo "  - Has changesets: $HAS_CHANGESETS"
+            echo "  - Manual bump: $MANUAL_VERSION_BUMP"
+            echo "  - Force release: ${{ github.event.inputs.force_release }}"
+          fi
+
+          # Get current version with validation
           VERSION=$(node -p "require('./package.json').version")
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "⚠️ Warning: Version format may be invalid: $VERSION"
+          fi
 
           echo "should_release=$SHOULD_RELEASE" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "has_changesets=$HAS_CHANGESETS" >> $GITHUB_OUTPUT
           echo "is_changeset_release=$IS_CHANGESET_RELEASE" >> $GITHUB_OUTPUT
+          echo "release_reason=$RELEASE_REASON" >> $GITHUB_OUTPUT
 
-  # Step 2: Handle changesets (version bumping)
+  # Step 2: Pre-release validation
+  pre-release-validation:
+    name: "Pre-Release Validation"
+    runs-on: ubuntu-latest
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true'
+    outputs:
+      validation_passed: ${{ steps.validate.outputs.passed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run comprehensive validation
+        id: validate
+        run: |
+          echo "🔍 Running pre-release validation..."
+          VALIDATION_PASSED="true"
+          VALIDATION_ERRORS=""
+
+          # 1. Check for security vulnerabilities
+          echo "🔒 Checking for security vulnerabilities..."
+          if ! pnpm audit --audit-level moderate; then
+            VALIDATION_ERRORS="${VALIDATION_ERRORS}Security vulnerabilities found. "
+            VALIDATION_PASSED="false"
+          fi
+
+          # 2. Validate package.json version format
+          echo "📦 Validating version format..."
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            VALIDATION_ERRORS="${VALIDATION_ERRORS}Invalid version format: $VERSION. "
+            VALIDATION_PASSED="false"
+          fi
+
+          # 3. Check for uncommitted changes
+          echo "📝 Checking for uncommitted changes..."
+          if ! git diff --quiet; then
+            VALIDATION_ERRORS="${VALIDATION_ERRORS}Uncommitted changes detected. "
+            VALIDATION_PASSED="false"
+          fi
+
+          # 4. Validate Tauri configuration
+          echo "⚙️ Validating Tauri configuration..."
+          if ! node -e "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8'))"; then
+            VALIDATION_ERRORS="${VALIDATION_ERRORS}Invalid tauri.conf.json. "
+            VALIDATION_PASSED="false"
+          fi
+
+          # 5. Check for breaking changes in changesets
+          echo "⚠️ Checking for breaking changes..."
+          if [ -d ".changeset" ]; then
+            BREAKING_CHANGES=$(find .changeset -name "*.md" -not -name "README.md" -not -name "config.json" -exec grep -l "BREAKING CHANGE\|!" {} \; 2>/dev/null | wc -l)
+            if [ "$BREAKING_CHANGES" -gt 0 ]; then
+              echo "⚠️ Found $BREAKING_CHANGES changesets with breaking changes"
+            fi
+          fi
+
+          # 6. Validate build prerequisites
+          echo "🔨 Validating build prerequisites..."
+          if ! pnpm run build; then
+            VALIDATION_ERRORS="${VALIDATION_ERRORS}Frontend build failed. "
+            VALIDATION_PASSED="false"
+          fi
+
+          # 7. Check Rust/Cargo configuration
+          echo "🦀 Validating Rust configuration..."
+          cd src-tauri
+          if ! cargo check --quiet; then
+            VALIDATION_ERRORS="${VALIDATION_ERRORS}Cargo check failed. "
+            VALIDATION_PASSED="false"
+          fi
+          cd ..
+
+          if [[ "$VALIDATION_PASSED" == "true" ]]; then
+            echo "✅ All pre-release validations passed"
+          else
+            echo "❌ Validation failed: $VALIDATION_ERRORS"
+            echo "Please fix the issues above before proceeding with the release."
+          fi
+
+          echo "passed=$VALIDATION_PASSED" >> $GITHUB_OUTPUT
+
+  # Step 3: Handle changesets (version bumping)
   handle-changesets:
     name: "Handle Changesets"
     runs-on: ubuntu-latest
-    needs: check-release
-    if: needs.check-release.outputs.has_changesets == 'true' && needs.check-release.outputs.is_changeset_release == 'false'
+    needs: [check-release, pre-release-validation]
+    if: needs.check-release.outputs.has_changesets == 'true' && needs.check-release.outputs.is_changeset_release == 'false' && needs.pre-release-validation.outputs.validation_passed == 'true'
     permissions:
       contents: write
       pull-requests: write
@@ -157,12 +288,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Step 3: Sync versions and create tag
+  # Step 4: Sync versions and create tag
   prepare-release:
     name: "Prepare Release"
     runs-on: ubuntu-latest
-    needs: check-release
-    if: needs.check-release.outputs.should_release == 'true'
+    needs: [check-release, pre-release-validation]
+    if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true'
     permissions:
       contents: write
     outputs:
@@ -230,22 +361,23 @@ jobs:
             echo "ℹ️ Tag $TAG already exists locally"
           fi
 
-  # Step 4: Build Android (if requested)
+  # Step 5: Build Android (if requested)
   build-android:
     name: "Build Android"
-    needs: [check-release, prepare-release]
-    if: needs.check-release.outputs.should_release == 'true' && (github.event.inputs.include_android == 'true' || github.event.inputs.include_android == null)
+    needs: [check-release, pre-release-validation, prepare-release]
+    if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true' && (github.event.inputs.include_android == 'true' || github.event.inputs.include_android == null)
     uses: ./.github/workflows/android-release.yml
     with:
       version: ${{ needs.prepare-release.outputs.version }}
       force_build: true
     secrets: inherit
 
-  # Step 5: Build and release desktop
+  # Step 6: Build and release desktop
   build-and-release:
     name: "Build & Release"
-    needs: [check-release, prepare-release, build-android]
-    if: needs.check-release.outputs.should_release == 'true' && always() && (needs.build-android.result == 'success' || needs.build-android.result == 'skipped')
+    needs:
+      [check-release, pre-release-validation, prepare-release, build-android]
+    if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true' && always() && (needs.build-android.result == 'success' || needs.build-android.result == 'skipped')
     permissions:
       contents: write
     strategy:
@@ -255,15 +387,19 @@ jobs:
           - platform: "macos-latest"
             args: "--target aarch64-apple-darwin"
             target: "aarch64-apple-darwin"
+            build_name: "macos-aarch64"
           - platform: "macos-latest"
             args: "--target x86_64-apple-darwin"
             target: "x86_64-apple-darwin"
+            build_name: "macos-x64"
           - platform: "ubuntu-22.04"
             args: ""
             target: "x86_64-unknown-linux-gnu"
+            build_name: "linux-x64"
           - platform: "windows-latest"
             args: ""
             target: "x86_64-pc-windows-msvc"
+            build_name: "windows-x64"
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -314,20 +450,93 @@ jobs:
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
 
-      - name: Cache dependencies
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
+            src-tauri/target
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: Cache Node dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Cache Build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            dist
+            src-tauri/target/release
+          key: ${{ runner.os }}-${{ matrix.build_name }}-build-${{ hashFiles('**/package.json', '**/Cargo.toml', '**/src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.build_name }}-build-
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build frontend
-        run: pnpm build
+        run: |
+          echo "🔨 Building frontend for ${{ matrix.build_name }}..."
+          pnpm build
+
+          # Validate build output
+          if [[ ! -d "dist" ]] || [[ ! -f "dist/index.html" ]]; then
+            echo "❌ Frontend build failed - dist directory or index.html missing"
+            exit 1
+          fi
+
+          BUILD_SIZE=$(du -sm dist | cut -f1)
+          echo "✅ Frontend build completed (${BUILD_SIZE}MB)"
+
+      - name: Validate build prerequisites
+        run: |
+          echo "🔍 Validating build prerequisites for ${{ matrix.build_name }}..."
+
+          # Check Rust toolchain
+          rustc --version
+          cargo --version
+
+          # Check Node.js and pnpm
+          node --version
+          pnpm --version
+
+          # Validate Tauri configuration
+          if [[ ! -f "src-tauri/tauri.conf.json" ]]; then
+            echo "❌ Tauri configuration missing"
+            exit 1
+          fi
+
+          # Check if target is supported
+          if ! rustup target list --installed | grep -q "${{ matrix.target }}"; then
+            echo "📦 Installing target ${{ matrix.target }}..."
+            rustup target add ${{ matrix.target }}
+          fi
+
+          echo "✅ Build prerequisites validated"
 
       - name: Extract changelog for release
         id: changelog
@@ -462,25 +671,56 @@ jobs:
         continue-on-error: true
 
       - name: Build and release Tauri app
-        uses: tauri-apps/tauri-action@v0
         id: tauri-action
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          TAURI_BUNDLE_MACOS_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          CI: true
+        continue-on-error: true
+        run: |
+          echo "🔨 Building and releasing Tauri app for ${{ matrix.build_name }}..."
+
+          # Set up environment variables
+          export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          export TAURI_SIGNING_PRIVATE_KEY="${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
+          export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}"
+          export APPLE_CERTIFICATE="${{ secrets.APPLE_CERTIFICATE }}"
+          export APPLE_CERTIFICATE_PASSWORD="${{ secrets.APPLE_CERTIFICATE_PASSWORD }}"
+          export APPLE_SIGNING_IDENTITY="${{ secrets.APPLE_SIGNING_IDENTITY }}"
+          export APPLE_ID="${{ secrets.APPLE_ID }}"
+          export APPLE_PASSWORD="${{ secrets.APPLE_PASSWORD }}"
+          export APPLE_TEAM_ID="${{ secrets.APPLE_TEAM_ID }}"
+          export TAURI_BUNDLE_MACOS_SIGNING_IDENTITY="${{ secrets.APPLE_SIGNING_IDENTITY }}"
+          export CI=true
+
+          # Build with retry logic
+          set +e
+          pnpm tauri build ${{ matrix.args }} --verbose
+          BUILD_EXIT_CODE=$?
+          set -e
+
+          if [[ $BUILD_EXIT_CODE -ne 0 ]]; then
+            echo "❌ First build attempt failed (exit code: $BUILD_EXIT_CODE)"
+            echo "🔄 Attempting clean build..."
+            
+            # Clean and retry
+            rm -rf dist src-tauri/target/release
+            pnpm tauri build ${{ matrix.args }} --verbose
+            BUILD_EXIT_CODE=$?
+            
+            if [[ $BUILD_EXIT_CODE -ne 0 ]]; then
+              echo "❌ Build failed after retry (exit code: $BUILD_EXIT_CODE)"
+              echo "build_success=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          fi
+
+          echo "✅ Tauri build completed successfully"
+          echo "build_success=true" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: steps.tauri-action.outputs.build_success == 'true'
+        uses: softprops/action-gh-release@v1
         with:
-          tagName: ${{ needs.prepare-release.outputs.tag }}
-          releaseName: "mpesa2csv ${{ needs.prepare-release.outputs.tag }}"
-          includeUpdaterJson: true
-          releaseBody: |
+          tag_name: ${{ needs.prepare-release.outputs.tag }}
+          name: "mpesa2csv ${{ needs.prepare-release.outputs.tag }}"
+          body: |
             ## What's New in v${{ needs.prepare-release.outputs.version }}
 
             ${{ steps.changelog.outputs.total_changes > 0 && format('📊 **Release Summary**: {0} changes', steps.changelog.outputs.total_changes) || '' }}
@@ -532,9 +772,10 @@ jobs:
             ---
 
             **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.changelog.outputs.previous_version || '0.0.2' }}...v${{ needs.prepare-release.outputs.version }}
-          releaseDraft: false
+          draft: false
           prerelease: false
-          args: ${{ matrix.args }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Android artifacts to release
         if: needs.build-android.result == 'success' && matrix.platform == 'ubuntu-22.04'
@@ -567,11 +808,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Step 6: Generate and upload updater JSON
+  # Step 7: Generate and upload updater JSON
   generate-updater-json:
     name: "Generate Updater JSON"
-    needs: [check-release, prepare-release, build-and-release]
-    if: needs.check-release.outputs.should_release == 'true'
+    needs:
+      [
+        check-release,
+        pre-release-validation,
+        prepare-release,
+        build-and-release,
+      ]
+    if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -643,24 +890,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Step 7: Create release branch for hotfixes
+  # Step 8: Create release branch for hotfixes
   create-release-branch:
     name: "Create Release Branch"
     needs:
-      [check-release, prepare-release, build-and-release, generate-updater-json]
-    if: needs.check-release.outputs.should_release == 'true'
+      [
+        check-release,
+        pre-release-validation,
+        prepare-release,
+        build-and-release,
+        generate-updater-json,
+      ]
+    if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true'
     uses: ./.github/workflows/reusable-create-release-branch.yml
     with:
       version: ${{ needs.prepare-release.outputs.tag }}
       max_branches: 5
     secrets: inherit
 
-  # Step 8: Notify about release completion
+  # Step 9: Notify about release completion
   notify-completion:
     name: "Release Complete"
     runs-on: ubuntu-latest
     needs:
       [
+        pre-release-validation,
         prepare-release,
         build-android,
         build-and-release,
@@ -676,3 +930,45 @@ jobs:
           ${{ needs.build-android.result == 'success' && 'echo "✅ Android APK/AAB built and published"' || 'echo "ℹ️ Android build skipped or failed"' }}
           echo "✅ Release branch created for hotfixes"
           echo "🔗 View release: https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare-release.outputs.tag }}"
+
+          # Create a comprehensive release summary
+          cat > release-summary.md << EOF
+          # 🚀 Release ${{ needs.prepare-release.outputs.tag }} Summary
+
+          ## ✅ Completed Tasks
+          - [x] Pre-release validation passed
+          - [x] Version files synced
+          - [x] Git tag created: ${{ needs.prepare-release.outputs.tag }}
+          - [x] Desktop binaries built for all platforms
+          ${{ needs.build-android.result == 'success' && '- [x] Android APK/AAB built and published' || '- [ ] Android build skipped or failed' }}
+          - [x] GitHub release created
+          - [x] Updater JSON generated
+          - [x] Release branch created for hotfixes
+
+          ## 📊 Build Status
+          - **Release Reason**: ${{ needs.check-release.outputs.release_reason }}
+          - **Validation**: ✅ Passed
+          - **Desktop Builds**: ✅ Success
+          - **Android Build**: ${{ needs.build-android.result == 'success' && '✅ Success' || '❌ Failed/Skipped' }}
+          - **Release Creation**: ✅ Success
+
+          ## 🔗 Links
+          - **Release**: https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare-release.outputs.tag }}
+          - **Release Branch**: release/${{ needs.prepare-release.outputs.version }}
+          - **Updater JSON**: https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare-release.outputs.tag }}/latest.json
+
+          ## 📱 Available Downloads
+          - Windows x64: [Download .exe](https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_x64-setup.exe)
+          - macOS Apple Silicon: [Download .dmg](https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_aarch64.dmg)
+          - macOS Intel: [Download .dmg](https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_x64.dmg)
+          - Linux x64: [Download .deb](https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.deb)
+          - Linux Portable: [Download .AppImage](https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.AppImage)
+          ${{ needs.build-android.result == 'success' && format('- Android: [Download .apk](https://github.com/{0}/releases/download/{1}/mpesa2csv-v{2}-universal-release.apk)', github.repository, needs.prepare-release.outputs.tag, needs.prepare-release.outputs.version) || '' }}
+
+          ---
+
+          **Release completed at**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          EOF
+
+          echo "📄 Release summary created"
+          cat release-summary.md

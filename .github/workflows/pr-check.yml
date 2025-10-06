@@ -67,6 +67,16 @@ jobs:
     name: Test and Build
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - test_type: "frontend"
+            description: "Frontend build and type check"
+          - test_type: "tauri"
+            description: "Tauri configuration validation"
+          - test_type: "security"
+            description: "Security audit"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -113,12 +123,24 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Install dependencies
+        if: matrix.test_type == 'frontend' || matrix.test_type == 'tauri'
         run: pnpm install --frozen-lockfile
 
       - name: Frontend type check and build
-        run: pnpm run build
+        if: matrix.test_type == 'frontend'
+        run: |
+          echo "🔨 Running frontend build and type check..."
+          pnpm run build
+
+          # Validate build output
+          if [[ ! -d "dist" ]] || [[ ! -f "dist/index.html" ]]; then
+            echo "❌ Frontend build failed"
+            exit 1
+          fi
+          echo "✅ Frontend build completed"
 
       - name: Lint check (if available)
+        if: matrix.test_type == 'frontend'
         run: |
           if pnpm run lint --help &>/dev/null; then
             echo "Running lint check..."
@@ -128,6 +150,7 @@ jobs:
           fi
 
       - name: Check Tauri configuration
+        if: matrix.test_type == 'tauri'
         run: |
           echo "🔍 Validating Tauri configuration..."
 
@@ -147,12 +170,24 @@ jobs:
           echo "✅ Cargo check passed"
 
       - name: Test Tauri build (dev mode)
+        if: matrix.test_type == 'tauri'
         run: |
           echo "🔧 Testing Tauri development build..."
           timeout 60s pnpm tauri build --debug || {
             echo "⚠️ Build test timed out (expected for PR checks)"
             echo "✅ Build process started successfully"
           }
+
+      - name: Security audit
+        if: matrix.test_type == 'security'
+        run: |
+          echo "🔒 Running security audit..."
+          pnpm audit --audit-level moderate || {
+            echo "⚠️ Security vulnerabilities found. Please review and fix."
+            echo "Run 'pnpm audit --fix' to automatically fix issues where possible."
+            exit 1
+          }
+          echo "✅ No security vulnerabilities found"
 
   release-branch-validation:
     name: Release Branch Validation
@@ -187,32 +222,3 @@ jobs:
           else
             echo "⚠️ Consider adding 'hotfix' or 'automated' labels to this release PR"
           fi
-
-  security-check:
-    name: Security Check
-    if: ${{ !github.event.pull_request.draft }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run security audit
-        run: |
-          echo "Running security audit..."
-          pnpm audit --audit-level moderate || {
-            echo "⚠️ Security vulnerabilities found. Please review and fix."
-            echo "Run 'pnpm audit --fix' to automatically fix issues where possible."
-            exit 1
-          }
-          echo "✅ No security vulnerabilities found"

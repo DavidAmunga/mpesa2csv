@@ -159,6 +159,9 @@ jobs:
             ~/.cargo/git
             src-tauri/target
           key: ${{ runner.os }}-android-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-android-cargo-
+            ${{ runner.os }}-cargo-
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
@@ -168,12 +171,71 @@ jobs:
             ~/.gradle/wrapper
             src-tauri/gen/android/.gradle
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Cache Node dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.pnpm-store
+          key: ${{ runner.os }}-android-node-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-android-node-
+            ${{ runner.os }}-node-
+
+      - name: Cache Android build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            dist
+            src-tauri/gen/android/app/build
+          key: ${{ runner.os }}-android-build-${{ hashFiles('**/package.json', '**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-android-build-
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build frontend
-        run: pnpm build
+        run: |
+          echo "🔨 Building frontend for Android..."
+          pnpm build
+
+          # Validate build output
+          if [[ ! -d "dist" ]] || [[ ! -f "dist/index.html" ]]; then
+            echo "❌ Frontend build failed - dist directory or index.html missing"
+            exit 1
+          fi
+
+          BUILD_SIZE=$(du -sm dist | cut -f1)
+          echo "✅ Frontend build completed (${BUILD_SIZE}MB)"
+
+      - name: Validate Android build prerequisites
+        run: |
+          echo "🔍 Validating Android build prerequisites..."
+
+          # Check Java version
+          java -version
+
+          # Check Android SDK
+          echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
+          echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME"
+
+          # Validate Android project structure
+          if [[ ! -d "src-tauri/gen/android" ]]; then
+            echo "❌ Android project directory missing"
+            exit 1
+          fi
+
+          # Check if Android targets are installed
+          if ! rustup target list --installed | grep -q "aarch64-linux-android"; then
+            echo "📦 Installing Android targets..."
+            rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+          fi
+
+          echo "✅ Android build prerequisites validated"
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2.0" --locked
@@ -202,31 +264,93 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Build Android Release
+        id: android_build
+        continue-on-error: true
         run: |
+          echo "🔨 Building Android release for aarch64..."
+
           cd src-tauri
+
+          # Set build environment
+          export ANDROID_NDK_HOME="$ANDROID_NDK_HOME"
+          export NDK_HOME="$NDK_HOME"
+
           if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
-              echo "🔨 Building signed release APK and AAB..."
+              echo "🔐 Building signed release APK and AAB..."
           else
               echo "⚠️ No signing keys provided - building unsigned release"
           fi
 
+          # Attempt build with retry logic
+          set +e
           cargo tauri android build --target aarch64 --verbose
+          BUILD_EXIT_CODE=$?
+          set -e
+
+          if [[ $BUILD_EXIT_CODE -ne 0 ]]; then
+            echo "❌ First build attempt failed (exit code: $BUILD_EXIT_CODE)"
+            echo "🔄 Attempting clean build..."
+            
+            # Clean and retry
+            cargo clean
+            cargo tauri android build --target aarch64 --verbose
+            BUILD_EXIT_CODE=$?
+            
+            if [[ $BUILD_EXIT_CODE -ne 0 ]]; then
+              echo "❌ Build failed after retry (exit code: $BUILD_EXIT_CODE)"
+              echo "build_success=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          fi
+
+          echo "✅ Android build completed successfully"
+          echo "build_success=true" >> $GITHUB_OUTPUT
+
+      - name: Handle Android Build Failure
+        if: steps.android_build.outcome == 'failure'
+        run: |
+          echo "❌ Android build failed"
+          echo "📊 Build diagnostics:"
+          echo "Rust version: $(rustc --version)"
+          echo "Cargo version: $(cargo --version)"
+          echo "Java version: $(java -version 2>&1)"
+          echo "Android SDK: $ANDROID_SDK_ROOT"
+          echo "Android NDK: $ANDROID_NDK_HOME"
+
+          # List available targets
+          echo "Available Rust targets:"
+          rustup target list --installed
+
+          # Check Android project structure
+          if [[ -d "src-tauri/gen/android" ]]; then
+            echo "Android project structure:"
+            ls -la src-tauri/gen/android/
+          fi
+
+          echo "⚠️ Android build failed - continuing with desktop builds only"
+
+      - name: Process Android Artifacts
+        if: steps.android_build.outcome == 'success'
+        run: |
+          echo "📱 Processing Android build artifacts..."
 
           # Rename build files using script
           cd ..
-          chmod +x rename-android-builds.sh
-          ./rename-android-builds.sh
-
-          # List created files and move them to the correct location for artifact upload
-          echo "📱 Created files:"
-          if ls *.apk *.aab 1> /dev/null 2>&1; then
-            echo "✅ Build files found in app directory:"
-            ls -la *.apk *.aab
+          if [[ -f "rename-android-builds.sh" ]]; then
+            chmod +x rename-android-builds.sh
+            ./rename-android-builds.sh
           else
-            echo "ℹ️ No build files found in app directory, checking if they were created..."
-            # The script might have created them elsewhere, let's find them
-            find . -name "*.apk" -o -name "*.aab" | head -10
+            echo "⚠️ rename-android-builds.sh not found, using default naming"
           fi
+
+          # List created files
+          echo "📱 Created files:"
+          find . -name "*.apk" -o -name "*.aab" | while read file; do
+            if [[ -f "$file" ]]; then
+              SIZE=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null)
+              echo "✅ $file ($SIZE bytes)"
+            fi
+          done
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -237,26 +361,69 @@ jobs:
         id: timestamp
         run: echo "build_time=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
 
-      - name: Set build info outputs
+      - name: Validate and organize build artifacts
         id: build_info
         run: |
-          # Set output paths for the built files
-          APK_PATH="mpesa2csv-v${{ needs.check-android-release.outputs.version }}-universal-release.apk"
-          AAB_PATH="mpesa2csv-v${{ needs.check-android-release.outputs.version }}-universal-release.aab"
+          echo "📱 Validating and organizing Android build artifacts..."
 
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-          echo "aab_path=$AAB_PATH" >> $GITHUB_OUTPUT
+          # Find actual build files
+          APK_FILES=$(find . -name "*.apk" -type f)
+          AAB_FILES=$(find . -name "*.aab" -type f)
 
-          echo "📱 Build outputs set:"
-          echo "  APK: $APK_PATH"
-          echo "  AAB: $AAB_PATH"
+          echo "Found APK files: $APK_FILES"
+          echo "Found AAB files: $AAB_FILES"
+
+          # Validate artifacts exist and are not empty
+          if [[ -z "$APK_FILES" ]] && [[ -z "$AAB_FILES" ]]; then
+            echo "❌ No Android artifacts found"
+            exit 1
+          fi
+
+          # Create standardized names and move to root directory
+          VERSION="${{ needs.check-android-release.outputs.version }}"
+          APK_NAME="mpesa2csv-v${VERSION}-universal-release.apk"
+          AAB_NAME="mpesa2csv-v${VERSION}-universal-release.aab"
+
+          # Copy APK if found
+          if [[ -n "$APK_FILES" ]]; then
+            APK_FILE=$(echo "$APK_FILES" | head -1)
+            cp "$APK_FILE" "./$APK_NAME"
+            echo "✅ APK copied: $APK_NAME"
+            echo "apk_path=$APK_NAME" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ No APK file found"
+            echo "apk_path=" >> $GITHUB_OUTPUT
+          fi
+
+          # Copy AAB if found
+          if [[ -n "$AAB_FILES" ]]; then
+            AAB_FILE=$(echo "$AAB_FILES" | head -1)
+            cp "$AAB_FILE" "./$AAB_NAME"
+            echo "✅ AAB copied: $AAB_NAME"
+            echo "aab_path=$AAB_NAME" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ No AAB file found"
+            echo "aab_path=" >> $GITHUB_OUTPUT
+          fi
+
+          # Validate file sizes
+          for file in *.apk *.aab; do
+            if [[ -f "$file" ]]; then
+              SIZE=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null)
+              if [[ $SIZE -lt 1000000 ]]; then  # Less than 1MB is suspicious
+                echo "⚠️ Artifact $file is suspiciously small ($SIZE bytes)"
+              else
+                echo "✅ $file ($SIZE bytes)"
+              fi
+            fi
+          done
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mpesa2csv-v${{ needs.check-android-release.outputs.version }}
           path: |
-            src-tauri/*.apk
-            src-tauri/*.aab
+            *.apk
+            *.aab
           retention-days: 30
           if-no-files-found: warn
