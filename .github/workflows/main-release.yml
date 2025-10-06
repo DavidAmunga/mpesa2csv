@@ -183,6 +183,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install system dependencies for validation
+        if: runner.os == 'Linux'
+        run: |
+          echo "📦 Installing system dependencies for validation..."
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libglib2.0-dev
+          echo "✅ System dependencies installed"
+
       - name: Run comprehensive validation
         id: validate
         run: |
@@ -228,8 +236,8 @@ jobs:
             fi
           fi
 
-          # 6. Validate build prerequisites
-          echo "🔨 Validating build prerequisites..."
+          # 6. Validate build prerequisites (frontend only for validation)
+          echo "🔨 Validating frontend build prerequisites..."
           if ! pnpm run build; then
             VALIDATION_ERRORS="${VALIDATION_ERRORS}Frontend build failed. "
             VALIDATION_PASSED="false"
@@ -238,9 +246,13 @@ jobs:
           # 7. Check Rust/Cargo configuration
           echo "🦀 Validating Rust configuration..."
           cd src-tauri
+
+          # Validate Cargo configuration with system dependencies
           if ! cargo check --quiet; then
             VALIDATION_ERRORS="${VALIDATION_ERRORS}Cargo check failed. "
             VALIDATION_PASSED="false"
+          else
+            echo "✅ Cargo configuration is valid"
           fi
           cd ..
 
@@ -535,6 +547,20 @@ jobs:
             echo "📦 Installing target ${{ matrix.target }}..."
             rustup target add ${{ matrix.target }}
           fi
+
+          # Validate Rust configuration with proper system dependencies
+          echo "🦀 Validating Rust configuration with system dependencies..."
+          cd src-tauri
+          if ! cargo check --quiet; then
+            echo "❌ Cargo check failed - this indicates a configuration issue"
+            echo "This could be due to:"
+            echo "  - Missing system dependencies"
+            echo "  - Invalid Cargo.toml configuration"
+            echo "  - Dependency conflicts"
+            exit 1
+          fi
+          cd ..
+          echo "✅ Rust configuration validated"
 
           echo "✅ Build prerequisites validated"
 
