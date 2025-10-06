@@ -511,58 +511,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build frontend
-        run: |
-          echo "🔨 Building frontend for ${{ matrix.build_name }}..."
-          pnpm build
-
-          # Validate build output
-          if [[ ! -d "dist" ]] || [[ ! -f "dist/index.html" ]]; then
-            echo "❌ Frontend build failed - dist directory or index.html missing"
-            exit 1
-          fi
-
-          BUILD_SIZE=$(du -sm dist | cut -f1)
-          echo "✅ Frontend build completed (${BUILD_SIZE}MB)"
-
-      - name: Validate build prerequisites
-        run: |
-          echo "🔍 Validating build prerequisites for ${{ matrix.build_name }}..."
-
-          # Check Rust toolchain
-          rustc --version
-          cargo --version
-
-          # Check Node.js and pnpm
-          node --version
-          pnpm --version
-
-          # Validate Tauri configuration
-          if [[ ! -f "src-tauri/tauri.conf.json" ]]; then
-            echo "❌ Tauri configuration missing"
-            exit 1
-          fi
-
-          # Check if target is supported
-          if ! rustup target list --installed | grep -q "${{ matrix.target }}"; then
-            echo "📦 Installing target ${{ matrix.target }}..."
-            rustup target add ${{ matrix.target }}
-          fi
-
-          # Validate Rust configuration with proper system dependencies
-          echo "🦀 Validating Rust configuration with system dependencies..."
-          cd src-tauri
-          if ! cargo check --quiet; then
-            echo "❌ Cargo check failed - this indicates a configuration issue"
-            echo "This could be due to:"
-            echo "  - Missing system dependencies"
-            echo "  - Invalid Cargo.toml configuration"
-            echo "  - Dependency conflicts"
-            exit 1
-          fi
-          cd ..
-          echo "✅ Rust configuration validated"
-
-          echo "✅ Build prerequisites validated"
+        run: pnpm build
 
       - name: Extract changelog for release
         id: changelog

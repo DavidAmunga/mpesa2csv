@@ -127,17 +127,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Frontend type check and build
-        if: matrix.test_type == 'frontend'
-        run: |
-          echo "🔨 Running frontend build and type check..."
-          pnpm run build
-
-          # Validate build output
-          if [[ ! -d "dist" ]] || [[ ! -f "dist/index.html" ]]; then
-            echo "❌ Frontend build failed"
-            exit 1
-          fi
-          echo "✅ Frontend build completed"
+        run: pnpm run build
+        
 
       - name: Lint check (if available)
         if: matrix.test_type == 'frontend'

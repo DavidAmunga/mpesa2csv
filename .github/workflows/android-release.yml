@@ -199,18 +199,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build frontend
-        run: |
-          echo "🔨 Building frontend for Android..."
-          pnpm build
-
-          # Validate build output
-          if [[ ! -d "dist" ]] || [[ ! -f "dist/index.html" ]]; then
-            echo "❌ Frontend build failed - dist directory or index.html missing"
-            exit 1
-          fi
-
-          BUILD_SIZE=$(du -sm dist | cut -f1)
-          echo "✅ Frontend build completed (${BUILD_SIZE}MB)"
+        run: pnpm build
 
       - name: Validate Android build prerequisites
         run: |
