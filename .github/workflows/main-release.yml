@@ -513,6 +513,36 @@ jobs:
       - name: Build frontend
         run: pnpm build
 
+      - name: Setup platform-specific JRE
+        shell: bash
+        run: |
+          echo "🔧 Setting up platform-specific JRE for ${{ matrix.build_name }}..."
+          cd src-tauri
+
+          # Set TARGET_PLATFORM based on the build target
+          case "${{ matrix.target }}" in
+            aarch64-apple-darwin)
+              export TARGET_PLATFORM="jre-macos-arm64"
+              ;;
+            x86_64-apple-darwin)
+              export TARGET_PLATFORM="jre-macos-x64"
+              ;;
+            x86_64-unknown-linux-gnu)
+              export TARGET_PLATFORM="jre-linux-x64"
+              ;;
+            x86_64-pc-windows-msvc)
+              export TARGET_PLATFORM="jre-windows-x64"
+              ;;
+            *)
+              echo "⚠️ Unknown target: ${{ matrix.target }}, attempting auto-detection"
+              ;;
+          esac
+
+          # Run the JRE setup script
+          bash scripts/setup-jre-for-build.sh
+
+          echo "✅ JRE setup complete for ${{ matrix.build_name }}"
+
       - name: Extract changelog for release
         id: changelog
         shell: bash

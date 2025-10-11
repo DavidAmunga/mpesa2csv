@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@krakz999/tabula-node':
+        specifier: ^1.0.6
+        version: 1.0.6
       '@radix-ui/react-checkbox':
         specifier: ^1.3.3
         version: 1.3.3(@types/react-dom@19.1.9(@types/react@19.1.13))(@types/react@19.1.13)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -467,6 +470,10 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@krakz999/tabula-node@1.0.6':
+    resolution: {integrity: sha512-9X2CcU/648FPAo+0L0EGsD1T2lmBDLtd4g7kZUBpgV+cv3nvp9vNGl2kmG+Ldgz/T0dwXmpu+YTpMk3Ssg50Nw==}
+    engines: {node: '>=12'}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -2556,6 +2563,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@krakz999/tabula-node@1.0.6': {}
 
   '@manypkg/find-root@1.1.0':
     dependencies:

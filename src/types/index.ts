@@ -12,6 +12,8 @@ export interface Transaction {
   withdrawn: number | null;
   balance: number;
   raw: string;
+  otherParty?: string;
+  transactionType?: string;
 }
 
 export enum FileStatus {

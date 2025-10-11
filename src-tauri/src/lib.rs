@@ -4,6 +4,90 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
+async fn extract_pdf_tables(
+    app_handle: tauri::AppHandle,
+    pdf_path: String,
+    output_path: String,
+    password: Option<String>,
+) -> Result<String, String> {
+    use std::process::Command;
+    use tauri::Manager;
+
+    let jar_path = app_handle
+        .path()
+        .resolve("tabula-1.0.5-jar-with-dependencies.jar", tauri::path::BaseDirectory::Resource)
+        .map_err(|e| format!("Failed to resolve JAR: {}", e))?;
+    
+    // Use the build-jre directory which contains only the platform-specific JRE
+    // The setup-jre-for-build.sh script copies the appropriate JRE here before building
+    let jre_folder = if cfg!(target_os = "windows") {
+        "build-jre/jre-windows-x64"
+    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+        "build-jre/jre-macos-x64"
+    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "build-jre/jre-macos-arm64"
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "build-jre/jre-linux-x64"
+    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+        "build-jre/jre-linux-arm64"
+    } else {
+        return Err(format!("Unsupported platform: {} {}", std::env::consts::OS, std::env::consts::ARCH));
+    };
+    
+    let jre_path = app_handle
+        .path()
+        .resolve(jre_folder, tauri::path::BaseDirectory::Resource)
+        .map_err(|e| format!("Failed to resolve JRE at {}: {}", jre_folder, e))?;
+    
+    // Try multiple possible locations for Java binary
+    // jlink-created JREs have a simpler structure than full macOS JREs
+    let java_binary = if cfg!(target_os = "macos") {
+        let jlink_path = jre_path.join("bin").join("java");
+        let full_path = jre_path.join("Contents").join("Home").join("bin").join("java");
+        
+        if jlink_path.exists() {
+            jlink_path
+        } else {
+            full_path
+        }
+    } else {
+        jre_path.join("bin").join(
+            if cfg!(target_os = "windows") { "java.exe" } else { "java" }
+        )
+    };
+    
+    let mut cmd = if java_binary.exists() {
+        Command::new(&java_binary)
+    } else {
+        Command::new("java")
+    };
+    cmd.arg("-jar")
+        .arg(&jar_path)
+        .arg(&pdf_path)
+        .arg("--format=CSV")
+        .arg("--outfile")
+        .arg(&output_path)
+        .arg("--pages")
+        .arg("all");
+    
+    if let Some(pwd) = password {
+        cmd.arg("--password").arg(pwd);
+    }
+    
+    let output = cmd
+        .output()
+        .map_err(|e| format!("Execution failed: {}", e))?;
+    
+    if output.status.success() {
+        Ok(format!("Tables extracted successfully to: {}", output_path))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        Err(format!("Tabula error:\nStderr: {}\nStdout: {}", stderr, stdout))
+    }
+}
+
+#[tauri::command]
 async fn save_csv_file(
     app: tauri::AppHandle,
     csv_content: String,
@@ -169,7 +253,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![greet, save_csv_file, save_file, get_app_version, open_file])
+        .invoke_handler(tauri::generate_handler![greet, extract_pdf_tables, save_csv_file, save_file, get_app_version, open_file])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
