@@ -55,12 +55,10 @@ jobs:
         uses: pnpm/action-setup@v4
 
       - name: Install dependencies
-        working-directory: app
         run: pnpm install --frozen-lockfile
 
       - name: Check release conditions
         id: check
-        working-directory: app
         run: |
           # Check if this is a changeset release commit
           COMMIT_MSG=$(git log -1 --pretty=format:"%s")
@@ -178,7 +176,6 @@ jobs:
         uses: pnpm/action-setup@v4
 
       - name: Install dependencies
-        working-directory: app
         run: pnpm install --frozen-lockfile
 
       - name: Install system dependencies for validation
@@ -191,7 +188,6 @@ jobs:
 
       - name: Run comprehensive validation
         id: validate
-        working-directory: app
         run: |
           echo "🔍 Running pre-release validation..."
           VALIDATION_PASSED="true"
@@ -296,7 +292,6 @@ jobs:
         uses: pnpm/action-setup@v4
 
       - name: Install dependencies
-        working-directory: app
         run: pnpm install --frozen-lockfile
 
       - name: Create Release Pull Request
@@ -335,11 +330,9 @@ jobs:
         uses: pnpm/action-setup@v4
 
       - name: Install dependencies
-        working-directory: app
         run: pnpm install --frozen-lockfile
 
       - name: Sync versions
-        working-directory: app
         run: |
           echo "📦 Syncing all version files..."
           pnpm run sync-versions
@@ -520,15 +513,12 @@ jobs:
             ${{ runner.os }}-${{ matrix.target }}-jre-
 
       - name: Install frontend dependencies
-        working-directory: app
         run: pnpm install --frozen-lockfile
 
       - name: Build frontend
-        working-directory: app
         run: pnpm build
 
       - name: Setup JRE for Tabula
-        working-directory: app
         shell: bash
         run: |
           echo "🔧 Setting up JRE for Tabula PDF processing..."
@@ -663,7 +653,6 @@ jobs:
       - name: Build and release Tauri app
         id: tauri-action
         continue-on-error: true
-        working-directory: app
         run: |
           echo "🔨 Building and releasing Tauri app for ${{ matrix.build_name }}..."
 

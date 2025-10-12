@@ -133,16 +133,13 @@ jobs:
 
       - name: Install dependencies
         if: matrix.test_type == 'frontend' || matrix.test_type == 'tauri'
-        working-directory: app
         run: pnpm install --frozen-lockfile
 
       - name: Frontend type check and build
-        working-directory: app
         run: pnpm run build
 
       - name: Setup JRE for Tabula
         if: matrix.test_type == 'tauri'
-        working-directory: app
         shell: bash
         run: |
           echo "🔧 Setting up JRE for Tabula PDF processing..."
@@ -151,7 +148,6 @@ jobs:
 
       - name: Lint check (if available)
         if: matrix.test_type == 'frontend'
-        working-directory: app
         run: |
           if pnpm run lint --help &>/dev/null; then
             echo "Running lint check..."
@@ -162,7 +158,6 @@ jobs:
 
       - name: Check Tauri configuration
         if: matrix.test_type == 'tauri'
-        working-directory: app
         run: |
           echo "🔍 Validating Tauri configuration..."
 
@@ -183,7 +178,6 @@ jobs:
 
       - name: Test Tauri build (dev mode)
         if: matrix.test_type == 'tauri'
-        working-directory: app
         run: |
           echo "🔧 Testing Tauri development build..."
           timeout 60s pnpm tauri build --debug || {
@@ -193,7 +187,6 @@ jobs:
 
       - name: Security audit
         if: matrix.test_type == 'security'
-        working-directory: app
         run: |
           echo "🔒 Running security audit..."
           pnpm audit --audit-level moderate || {
