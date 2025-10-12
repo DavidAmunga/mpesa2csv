@@ -47,6 +47,7 @@ src-tauri/target
 
 # Platform-specific JRE build directory (generated at build time)
 src-tauri/resources/build-jre/
+src-tauri/resources/jre/
 
 # Environment files
 .env

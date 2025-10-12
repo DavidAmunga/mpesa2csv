@@ -19,7 +19,7 @@ async fn extract_pdf_tables(
         .map_err(|e| format!("Failed to resolve JAR: {}", e))?;
     
     // Use the build-jre directory which contains only the platform-specific JRE
-    // The setup-jre-for-build.sh script copies the appropriate JRE here before building
+    // The setup-build-jre.sh script downloads and prepares the appropriate JRE here before building
     let jre_folder = if cfg!(target_os = "windows") {
         "build-jre/jre-windows-x64"
     } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
