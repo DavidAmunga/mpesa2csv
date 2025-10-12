@@ -60,22 +60,30 @@ export class TabulaService {
       return { transactions: [] };
     }
 
-    const headerLine = lines[1].toLowerCase();
-    const isPaybillStatement =
-      headerLine.includes("other party") ||
-      headerLine.includes("transaction type");
-
+    let headerIndex = -1;
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      const lowerLine = line.toLowerCase();
+      const lowerLine = lines[i].toLowerCase();
       if (
         lowerLine.includes("receipt") &&
         lowerLine.includes("completion") &&
         (lowerLine.includes("details") || lowerLine.includes("transaction"))
       ) {
-        continue;
+        headerIndex = i;
+        break;
       }
+    }
+
+    if (headerIndex === -1) {
+      return { transactions: [] };
+    }
+
+    const headerLine = lines[headerIndex].toLowerCase();
+    const isPaybillStatement =
+      headerLine.includes("other party") ||
+      headerLine.includes("transaction type");
+
+    for (let i = headerIndex + 1; i < lines.length; i++) {
+      const line = lines[i];
 
       const fields = this.parseCSVLine(line);
 
