@@ -26,11 +26,6 @@ on:
           - patch
           - minor
           - major
-      include_android:
-        description: "Include Android build in this release"
-        required: false
-        default: true
-        type: boolean
 
 concurrency:
   group: main-release
@@ -393,23 +388,11 @@ jobs:
             echo "ℹ️ Tag $TAG already exists locally"
           fi
 
-  # Step 5: Build Android (if requested)
-  build-android:
-    name: "Build Android"
-    needs: [check-release, pre-release-validation, prepare-release]
-    if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true' && (github.event.inputs.include_android == 'true' || github.event.inputs.include_android == null)
-    uses: ./.github/workflows/android-release.yml
-    with:
-      version: ${{ needs.prepare-release.outputs.version }}
-      force_build: true
-    secrets: inherit
-
-  # Step 6: Build and release desktop
+  # Step 5: Build and release desktop
   build-and-release:
     name: "Build & Release"
-    needs:
-      [check-release, pre-release-validation, prepare-release, build-android]
-    if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true' && always() && (needs.build-android.result == 'success' || needs.build-android.result == 'skipped')
+    needs: [check-release, pre-release-validation, prepare-release]
+    if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true'
     permissions:
       contents: write
     strategy:
@@ -677,14 +660,6 @@ jobs:
         id: timestamp
         run: echo "build_time=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
 
-      - name: Download Android artifacts (if available)
-        if: needs.build-android.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: mpesa2csv-v${{ needs.prepare-release.outputs.version }}
-          path: ./android-artifacts/
-        continue-on-error: true
-
       - name: Build and release Tauri app
         id: tauri-action
         continue-on-error: true
@@ -764,14 +739,13 @@ jobs:
             | **macOS** | Intel x64 | [📥 Download .dmg](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_x64.dmg) | Open DMG and drag to Applications |
             | **Linux** | x64 (Ubuntu/Debian) | [📥 Download .deb](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.deb) | `sudo dpkg -i mpesa2csv_*.deb` |
             | **Linux** | x64 (Portable) | [📥 Download .AppImage](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.AppImage) | `chmod +x mpesa2csv_*.AppImage && ./mpesa2csv_*.AppImage` |
-            ${{ needs.build-android.result == 'success' && format('| **Android** | ARM64 | [📥 Download .apk](https://github.com/DavidAmunga/mpesa2csv/releases/download/{0}/mpesa2csv-v{1}-universal-release.apk) | Enable "Install from unknown sources" and install', needs.prepare-release.outputs.tag, needs.prepare-release.outputs.version) || '' }}
 
             ### 📊 Release Metadata
 
             - **Version**: `${{ needs.prepare-release.outputs.version }}`
             - **Build Date**: `${{ steps.timestamp.outputs.build_time }}`
             - **Total Changes**: ${{ steps.changelog.outputs.total_changes }}
-            - **Platforms**: Windows, macOS (Intel + Apple Silicon), Linux${{ needs.build-android.result == 'success' && ', Android' || '' }}
+            - **Platforms**: Windows, macOS (Intel + Apple Silicon), Linux
             ${{ steps.changelog.outputs.breaking > 0 && format('- **Breaking Changes**: {0}', steps.changelog.outputs.breaking) || '' }}
 
             ### 🔍 System Requirements
@@ -779,7 +753,6 @@ jobs:
             - **Windows**: Windows 10 version 1903 or later
             - **macOS**: macOS 10.15 Catalina or later  
             - **Linux**: Modern distribution with GTK 3.24+ and WebKit2GTK 4.1+
-            ${{ needs.build-android.result == 'success' && '- **Android**: Android 7.0 (API level 24) or later' || '' }}
 
             ### 🔄 Auto-Update
 
@@ -793,38 +766,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Android artifacts to release
-        if: needs.build-android.result == 'success' && matrix.platform == 'ubuntu-22.04'
-        run: |
-          if [ -d "./android-artifacts" ]; then
-            echo "📱 Uploading Android artifacts to release..."
-            # Move Android artifacts to current directory for upload
-            find ./android-artifacts -name "*.apk" -o -name "*.aab" | while read file; do
-              if [ -f "$file" ]; then
-                filename=$(basename "$file")
-                cp "$file" "./$filename"
-                echo "✅ Prepared $filename for release"
-              fi
-            done
-            
-            # Upload to GitHub release using gh CLI
-            if command -v gh &> /dev/null; then
-              for file in *.apk *.aab; do
-                if [ -f "$file" ]; then
-                  echo "📤 Uploading $file to release..."
-                  gh release upload "${{ needs.prepare-release.outputs.tag }}" "$file" --clobber || echo "⚠️ Failed to upload $file"
-                fi
-              done
-            else
-              echo "⚠️ GitHub CLI not available, Android artifacts not uploaded to release"
-            fi
-          else
-            echo "ℹ️ No Android artifacts found to upload"
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Step 7: Generate and upload updater JSON
+  # Step 6: Generate and upload updater JSON
   generate-updater-json:
     name: "Generate Updater JSON"
     needs:
@@ -906,7 +848,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Step 8: Create release branch for hotfixes
+  # Step 7: Create release branch for hotfixes
   create-release-branch:
     name: "Create Release Branch"
     needs:
@@ -924,7 +866,7 @@ jobs:
       max_branches: 5
     secrets: inherit
 
-  # Step 9: Notify about release completion
+  # Step 8: Notify about release completion
   notify-completion:
     name: "Release Complete"
     runs-on: ubuntu-latest
@@ -932,7 +874,6 @@ jobs:
       [
         pre-release-validation,
         prepare-release,
-        build-android,
         build-and-release,
         generate-updater-json,
         create-release-branch,
@@ -943,7 +884,6 @@ jobs:
         run: |
           echo "🎉 Release ${{ needs.prepare-release.outputs.tag }} completed!"
           echo "✅ Desktop binaries built and published"
-          ${{ needs.build-android.result == 'success' && 'echo "✅ Android APK/AAB built and published"' || 'echo "ℹ️ Android build skipped or failed"' }}
           echo "✅ Release branch created for hotfixes"
           echo "🔗 View release: https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare-release.outputs.tag }}"
 
@@ -956,7 +896,6 @@ jobs:
           - [x] Version files synced
           - [x] Git tag created: ${{ needs.prepare-release.outputs.tag }}
           - [x] Desktop binaries built for all platforms
-          ${{ needs.build-android.result == 'success' && '- [x] Android APK/AAB built and published' || '- [ ] Android build skipped or failed' }}
           - [x] GitHub release created
           - [x] Updater JSON generated
           - [x] Release branch created for hotfixes
@@ -965,7 +904,6 @@ jobs:
           - **Release Reason**: ${{ needs.check-release.outputs.release_reason }}
           - **Validation**: ✅ Passed
           - **Desktop Builds**: ✅ Success
-          - **Android Build**: ${{ needs.build-android.result == 'success' && '✅ Success' || '❌ Failed/Skipped' }}
           - **Release Creation**: ✅ Success
 
           ## 🔗 Links
@@ -979,7 +917,6 @@ jobs:
           - macOS Intel: [Download .dmg](https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_x64.dmg)
           - Linux x64: [Download .deb](https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.deb)
           - Linux Portable: [Download .AppImage](https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.AppImage)
-          ${{ needs.build-android.result == 'success' && format('- Android: [Download .apk](https://github.com/{0}/releases/download/{1}/mpesa2csv-v{2}-universal-release.apk)', github.repository, needs.prepare-release.outputs.tag, needs.prepare-release.outputs.version) || '' }}
 
           ---
 
