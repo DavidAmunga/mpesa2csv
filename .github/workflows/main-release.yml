@@ -720,7 +720,7 @@ jobs:
                 FORMATTED_CHANGELOG="$CHANGELOG_CONTENT"
               fi
               
-              FORMATTED_CHANGELOG=$(echo "$FORMATTED_CHANGELOG" | tr -d '\r\t' | sed 's/\\/\\\\/g')
+              FORMATTED_CHANGELOG=$(echo "$FORMATTED_CHANGELOG" | tr -d '\r\t\f\v' | tr -s '\n' | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
               
               echo "changelog<<EOF" >> $GITHUB_OUTPUT
               echo "$FORMATTED_CHANGELOG" >> $GITHUB_OUTPUT
@@ -837,8 +837,7 @@ jobs:
           if command -v gh &> /dev/null; then
             GITHUB_NOTES=$(gh api repos/${{ github.repository }}/releases/latest --jq '.body' 2>/dev/null || echo "")
             if [ -n "$GITHUB_NOTES" ] && [ "$GITHUB_NOTES" != "null" ]; then
-              # Truncate if too long and clean up markdown, sanitize control characters
-              RELEASE_NOTES=$(echo "$GITHUB_NOTES" | head -20 | sed 's/^## /## /g' | sed 's/^### /### /g' | tr -d '\r\t')
+              RELEASE_NOTES=$(echo "$GITHUB_NOTES" | head -20 | sed 's/^## /## /g' | sed 's/^### /### /g' | tr -d '\r\t\f\v\b' | tr -s '\n')
             fi
           fi
 
