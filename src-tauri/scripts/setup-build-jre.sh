@@ -177,10 +177,8 @@ download_jre() {
     # Clean up archive
     rm "$ARCHIVE_FILE"
     
-    find "$EXTRACT_DIR" -type f -exec chmod u+r {} \; 2>/dev/null || true
-    find "$EXTRACT_DIR" -type f -exec chmod a+r {} \; 2>/dev/null || true
-    find "$EXTRACT_DIR" -type d -exec chmod u+rx {} \; 2>/dev/null || true
-    find "$EXTRACT_DIR" -type d -exec chmod a+rx {} \; 2>/dev/null || true
+    find "$EXTRACT_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+    find "$EXTRACT_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
     
     print_success "JRE extracted successfully" >&2
     echo "$EXTRACT_DIR"
@@ -238,11 +236,8 @@ create_minimal_jre() {
         --output "$OUTPUT_DIR" 2>&1 | grep -v "Warning" || [ ${PIPESTATUS[0]} -eq 0 ]; then
         
         if [ -d "$OUTPUT_DIR" ]; then
-            # Set permissions explicitly on all files and directories
-            find "$OUTPUT_DIR" -type f -exec chmod u+r {} \; 2>/dev/null || true
-            find "$OUTPUT_DIR" -type f -exec chmod a+r {} \; 2>/dev/null || true
-            find "$OUTPUT_DIR" -type d -exec chmod u+rx {} \; 2>/dev/null || true
-            find "$OUTPUT_DIR" -type d -exec chmod a+rx {} \; 2>/dev/null || true
+            find "$OUTPUT_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+            find "$OUTPUT_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
             
             local SIZE=$(du -sh "$OUTPUT_DIR" | cut -f1)
             print_success "Minimal JRE created successfully (Size: $SIZE)" >&2
@@ -263,11 +258,8 @@ copy_full_jre() {
     
     cp -r "$SOURCE_JRE" "$OUTPUT_DIR"
     
-    # Fix permissions after copying - set explicitly on all files and directories
-    find "$OUTPUT_DIR" -type f -exec chmod u+r {} \; 2>/dev/null || true
-    find "$OUTPUT_DIR" -type f -exec chmod a+r {} \; 2>/dev/null || true
-    find "$OUTPUT_DIR" -type d -exec chmod u+rx {} \; 2>/dev/null || true
-    find "$OUTPUT_DIR" -type d -exec chmod a+rx {} \; 2>/dev/null || true
+    find "$OUTPUT_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
+    find "$OUTPUT_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
     
     local SIZE=$(du -sh "$OUTPUT_DIR" | cut -f1)
     print_success "Full JRE copied successfully (Size: $SIZE)" >&2
@@ -279,11 +271,8 @@ set_java_permissions() {
     
     print_info "Setting permissions on JRE files..." >&2
     
-    # First, ensure all files and directories are readable
-    find "$JRE_PATH" -type f -exec chmod u+r {} \; 2>/dev/null || true
-    find "$JRE_PATH" -type f -exec chmod a+r {} \; 2>/dev/null || true
-    find "$JRE_PATH" -type d -exec chmod u+rx {} \; 2>/dev/null || true
-    find "$JRE_PATH" -type d -exec chmod a+rx {} \; 2>/dev/null || true
+    find "$JRE_PATH" -type f -exec chmod 644 {} \; 2>/dev/null || true
+    find "$JRE_PATH" -type d -exec chmod 755 {} \; 2>/dev/null || true
     
     # Try multiple possible locations for Java binary
     local POSSIBLE_PATHS=(
@@ -293,10 +282,9 @@ set_java_permissions() {
     
     for path in "${POSSIBLE_PATHS[@]}"; do
         if [ -f "$path" ]; then
-            chmod +x "$path"
+            chmod 755 "$path"
             print_success "Set executable permission for: $path" >&2
-            # Also set permissions for other binaries in the bin directory
-            chmod +x "$(dirname "$path")"/* 2>/dev/null || true
+            find "$(dirname "$path")" -type f -exec chmod 755 {} \; 2>/dev/null || true
             return 0
         fi
     done
