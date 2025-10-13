@@ -10,7 +10,14 @@
     "core:webview:allow-webview-position",
     "core:webview:allow-webview-size",
     "fs:allow-read-file",
+    "fs:allow-remove",
+    "fs:allow-read-text-file",
+    "fs:allow-write-file",
     "fs:default",
+    {
+      "identifier": "fs:scope",
+      "allow": ["$TEMP/**"]
+    },
     "updater:default",
     "updater:allow-check",
     "process:default",

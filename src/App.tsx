@@ -9,7 +9,7 @@ import {
   ExportFormat,
   ExportOptions as ExportOptionsType,
 } from "./types";
-import { PdfService } from "./services/pdfService";
+import { TabulaService } from "./services/tabulaService";
 import { ExportService } from "./services/exportService";
 import FileUploader from "./components/file-uploader";
 import PasswordPrompt from "./components/password-prompt";
@@ -130,37 +130,32 @@ function App() {
       const file = filesToProcess[i];
 
       try {
-        const result = (await Promise.race([
-          PdfService.loadPdf(file),
-          new Promise((_, reject) =>
+        setStatus(FileStatus.PROCESSING);
+
+        const csvContent = await Promise.race([
+          TabulaService.extractTablesFromPdf(file),
+          new Promise<string>((_, reject) =>
             setTimeout(
-              () => reject(new Error("PDF loading timeout after 30 seconds")),
-              30000
+              () =>
+                reject(new Error("PDF processing timeout after 60 seconds")),
+              60000
             )
           ),
-        ])) as { isProtected: boolean; pdf?: any };
+        ]);
 
-        if (result.isProtected) {
+        const statement = TabulaService.parseTabulaCSV(csvContent);
+        statement.fileName = file.name;
+        processedStatements.push(statement);
+      } catch (err: any) {
+        if (
+          err.message?.includes("password") ||
+          err.message?.includes("encrypted") ||
+          err.message?.includes("protected")
+        ) {
           setStatus(FileStatus.PROTECTED);
           return { needsPassword: true, fileIndex: i, processedStatements };
-        } else if (result.pdf) {
-          setStatus(FileStatus.PROCESSING);
-          const statement = (await Promise.race([
-            PdfService.parseMpesaStatement(result.pdf),
-            new Promise((_, reject) =>
-              setTimeout(
-                () => reject(new Error("PDF parsing timeout after 60 seconds")),
-                60000
-              )
-            ),
-          ])) as MPesaStatement;
-
-          statement.fileName = file.name;
-          processedStatements.push(statement);
-        } else {
-          throw new Error("No PDF data returned from loadPdf");
         }
-      } catch (err: any) {
+
         setStatus(FileStatus.ERROR);
         setError(err.message || "Failed to process the PDF file");
         return {
@@ -227,9 +222,12 @@ function App() {
 
     try {
       const currentFile = files[currentFileIndex];
-      const pdf = await PdfService.unlockPdf(currentFile, password);
 
-      const statement = await PdfService.parseMpesaStatement(pdf);
+      const csvContent = await TabulaService.extractTablesFromPdf(
+        currentFile,
+        password
+      );
+      const statement = TabulaService.parseTabulaCSV(csvContent);
       statement.fileName = currentFile.name;
 
       const updatedStatements = [...statements, statement];
@@ -262,7 +260,7 @@ function App() {
       }
     } catch (err: any) {
       setStatus(FileStatus.PROTECTED);
-      setError(err.message || "Failed to unlock the PDF file");
+      setError(err.message || "Incorrect password. Please try again.");
     }
   };
 

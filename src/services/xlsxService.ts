@@ -30,8 +30,13 @@ export class XlsxService {
     // Create worksheet
     const worksheet = workbook.addWorksheet("M-Pesa Transactions");
 
+    // Check if this is a paybill statement (has transactionType or otherParty)
+    const isPaybillStatement = filteredStatement.transactions.some(
+      (t) => t.transactionType !== undefined || t.otherParty !== undefined
+    );
+
     // Define columns with headers and widths
-    worksheet.columns = [
+    const columns: any[] = [
       { header: "Receipt No", key: "receiptNo", width: 12 },
       { header: "Completion Time", key: "completionTime", width: 20 },
       { header: "Details", key: "details", width: 40 },
@@ -40,6 +45,16 @@ export class XlsxService {
       { header: "Withdrawn", key: "withdrawn", width: 12 },
       { header: "Balance", key: "balance", width: 12 },
     ];
+
+    // Add paybill-specific columns if needed
+    if (isPaybillStatement) {
+      columns.push(
+        { header: "Transaction Type", key: "transactionType", width: 18 },
+        { header: "Other Party", key: "otherParty", width: 30 }
+      );
+    }
+
+    worksheet.columns = columns;
 
     // Style the header row
     const headerRow = worksheet.getRow(1);
@@ -53,7 +68,7 @@ export class XlsxService {
 
     // Add filtered and sorted transaction data
     filteredStatement.transactions.forEach((transaction) => {
-      worksheet.addRow({
+      const rowData: any = {
         receiptNo: transaction.receiptNo,
         completionTime: formatDate(
           transaction.completionTime,
@@ -64,7 +79,15 @@ export class XlsxService {
         paidIn: transaction.paidIn !== null ? transaction.paidIn : "",
         withdrawn: transaction.withdrawn !== null ? transaction.withdrawn : "",
         balance: transaction.balance,
-      });
+      };
+
+      // Add paybill-specific fields if present
+      if (isPaybillStatement) {
+        rowData.transactionType = transaction.transactionType || "";
+        rowData.otherParty = transaction.otherParty || "";
+      }
+
+      worksheet.addRow(rowData);
     });
 
     const dataRange = worksheet.getRows(1, worksheet.rowCount);

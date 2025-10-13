@@ -1,0 +1,6 @@
+# Ignore the source JRE directories from being watched/tracked by Tauri build system
+# The build script will copy only the platform-specific JRE to build-jre/
+resources/jre/**
+
+# Don't ignore build-jre as it contains the platform-specific JRE for the current build
+# resources/build-jre/** is intentionally NOT ignored

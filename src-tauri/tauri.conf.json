@@ -34,6 +34,10 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": {
+      "resources/tabula-1.0.5-jar-with-dependencies.jar": "./",
+      "resources/build-jre": "./"
+    },
     "publisher": "David Amunga",
     "category": "Utility",
     "shortDescription": "Convert M-PESA statements to CSV/Excel",

@@ -1,0 +1,169 @@
+import { invoke } from "@tauri-apps/api/core";
+import { MPesaStatement, Transaction } from "../types";
+import { tempDir, join } from "@tauri-apps/api/path";
+import { writeFile, readTextFile, remove } from "@tauri-apps/plugin-fs";
+
+export class TabulaService {
+  /**
+   * Process PDF using Tabula via Rust backend
+   */
+  static async extractTablesFromPdf(
+    file: File,
+    password?: string
+  ): Promise<string> {
+    const timestamp = Date.now();
+    const tempInputName = `mpesa_temp_${timestamp}.pdf`;
+    const tempOutputName = `mpesa_output_${timestamp}.csv`;
+
+    try {
+      const tempDirPath = await tempDir();
+      const inputPath = await join(tempDirPath, tempInputName);
+      const outputPath = await join(tempDirPath, tempOutputName);
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+
+      await writeFile(inputPath, bytes);
+
+      await invoke<string>("extract_pdf_tables", {
+        pdfPath: inputPath,
+        outputPath: outputPath,
+        password: password || null,
+      });
+
+      const csvContent = await readTextFile(outputPath);
+
+      try {
+        await remove(inputPath);
+        await remove(outputPath);
+      } catch (e) {
+        console.warn("Failed to clean up temp files:", e);
+      }
+      return csvContent;
+    } catch (error: any) {
+      const tempDirPath = await tempDir();
+      try {
+        await remove(await join(tempDirPath, tempInputName));
+        await remove(await join(tempDirPath, tempOutputName));
+      } catch (e) {}
+      throw new Error(`Tabula extraction failed: ${error.message || error}`);
+    }
+  }
+
+  /**
+   * Parse CSV output from Tabula into MPesaStatement
+   */
+  static parseTabulaCSV(csvContent: string): MPesaStatement {
+    const transactions: Transaction[] = [];
+    const lines = csvContent.split("\n").filter((line) => line.trim());
+
+    if (lines.length === 0) {
+      return { transactions: [] };
+    }
+
+    let headerIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const lowerLine = lines[i].toLowerCase();
+      if (
+        lowerLine.includes("receipt") &&
+        lowerLine.includes("completion") &&
+        (lowerLine.includes("details") || lowerLine.includes("transaction"))
+      ) {
+        headerIndex = i;
+        break;
+      }
+    }
+
+    if (headerIndex === -1) {
+      return { transactions: [] };
+    }
+
+    const headerLine = lines[headerIndex].toLowerCase();
+    const isPaybillStatement =
+      headerLine.includes("other party") ||
+      headerLine.includes("transaction type");
+
+    for (let i = headerIndex + 1; i < lines.length; i++) {
+      const line = lines[i];
+
+      const fields = this.parseCSVLine(line);
+
+      if (fields.length < 4) continue;
+
+      if (fields[0]?.toLowerCase().includes("receipt")) continue;
+
+      const transaction: Transaction = {
+        receiptNo: fields[0]?.trim() || "",
+        completionTime: fields[1]?.trim() || "",
+        details: fields[2]?.trim() || "",
+        transactionStatus: fields[3]?.trim() || "Unknown",
+        paidIn: this.parseAmount(fields[4]),
+        withdrawn: this.parseAmount(fields[5]),
+        balance: this.parseAmount(fields[6]) || 0,
+        raw: line,
+      };
+
+      if (isPaybillStatement && fields.length >= 8) {
+        const transactionType = fields[7]?.trim();
+        const otherParty = fields[8]?.trim();
+
+        transaction.transactionType = transactionType;
+        transaction.otherParty = otherParty;
+      }
+
+      if (!transaction.receiptNo && !transaction.completionTime) {
+        continue;
+      }
+
+      transactions.push(transaction);
+    }
+
+    return {
+      transactions: transactions.sort((a, b) => {
+        const dateA = new Date(a.completionTime);
+        const dateB = new Date(b.completionTime);
+        return dateA.getTime() - dateB.getTime();
+      }),
+    };
+  }
+
+  private static parseCSVLine(line: string): string[] {
+    const fields: string[] = [];
+    let currentField = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          currentField += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === "," && !inQuotes) {
+        fields.push(currentField);
+        currentField = "";
+      } else {
+        currentField += char;
+      }
+    }
+
+    fields.push(currentField);
+    return fields;
+  }
+
+  private static parseAmount(amountStr: string | undefined): number | null {
+    if (!amountStr || amountStr === "-" || amountStr.trim() === "") {
+      return null;
+    }
+
+    try {
+      const cleaned = amountStr.replace(/[^\d.-]/g, "");
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? null : parsed;
+    } catch {
+      return null;
+    }
+  }
+}
