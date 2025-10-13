@@ -301,7 +301,6 @@ jobs:
           title: "chore: release version packages"
           commit: "chore: release version packages"
           createGithubReleases: false
-          cwd: app
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -338,7 +337,6 @@ jobs:
           pnpm run sync-versions
 
           # Check if there are any changes to commit
-          cd ..
           if ! git diff --quiet; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -353,14 +351,12 @@ jobs:
       - name: Get version and create tag
         id: version
         run: |
-          cd app
           VERSION=$(node -p "require('./package.json').version")
           TAG="v$VERSION"
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-          cd ..
           # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -532,7 +528,6 @@ jobs:
         run: |
           set +e  # Disable exit on error for this script
           VERSION="${{ needs.prepare-release.outputs.version }}"
-          cd app
 
           if [ -f "CHANGELOG.md" ]; then
             # Extract the changelog section for the current version
