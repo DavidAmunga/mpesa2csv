@@ -119,9 +119,9 @@ jobs:
           if [[ "$IS_CHANGESET_RELEASE" == "true" ]]; then
             SHOULD_RELEASE="true"
             RELEASE_REASON="changeset release commit"
-          elif [[ "$VERSION_CHANGED" == "true" && "$IS_CHANGESET_RELEASE" == "true" ]]; then
+          elif [[ "$HAS_CHANGESETS" == "true" && "$VERSION_CHANGED" == "true" ]]; then
             SHOULD_RELEASE="true"
-            RELEASE_REASON="version files changed in changeset release"
+            RELEASE_REASON="changesets present and version files updated"
           elif [[ "${{ github.event.inputs.force_release }}" == "true" ]]; then
             SHOULD_RELEASE="true"
             RELEASE_REASON="manual force release"
