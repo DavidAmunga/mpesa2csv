@@ -663,8 +663,6 @@ jobs:
               echo "security=0" >> $GITHUB_OUTPUT
               echo "total_changes=0" >> $GITHUB_OUTPUT
             fi
-            
-            
             echo "previous_version=$PREVIOUS_VERSION" >> $GITHUB_OUTPUT
           else
             echo "changelog=No changelog available." >> $GITHUB_OUTPUT
