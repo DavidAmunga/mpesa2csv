@@ -732,9 +732,36 @@ jobs:
         id: timestamp
         run: echo "build_time=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
 
-      - name: Build and release Tauri app
-        id: tauri-action
-        uses: tauri-apps/tauri-action@v0
+      - name: Build Tauri app
+        id: tauri-build
+        continue-on-error: true
+        run: |
+          echo "🔨 Building Tauri app for ${{ matrix.build_name }}..."
+
+          # Build with retry logic
+          set +e
+          pnpm tauri build ${{ matrix.args }} --verbose
+          BUILD_EXIT_CODE=$?
+          set -e
+
+          if [[ $BUILD_EXIT_CODE -ne 0 ]]; then
+            echo "❌ First build attempt failed (exit code: $BUILD_EXIT_CODE)"
+            echo "🔄 Attempting clean build..."
+            
+            # Clean and retry
+            rm -rf dist src-tauri/target/release
+            pnpm tauri build ${{ matrix.args }} --verbose
+            BUILD_EXIT_CODE=$?
+            
+            if [[ $BUILD_EXIT_CODE -ne 0 ]]; then
+              echo "❌ Build failed after retry (exit code: $BUILD_EXIT_CODE)"
+              echo "build_success=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          fi
+
+          echo "✅ Tauri build completed successfully"
+          echo "build_success=true" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -745,47 +772,79 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPIMAGE_EXTRACT_AND_RUN: "1"
-          NO_STRIP: "true"
-          VERBOSE: "1"
+          TAURI_BUNDLE_MACOS_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          CI: true
+
+      - name: Create GitHub Release
+        if: steps.tauri-build.outputs.build_success == 'true'
+        uses: softprops/action-gh-release@v1
         with:
-          tagName: ${{ needs.prepare-release.outputs.tag }}
-          releaseName: "mpesa2csv ${{ needs.prepare-release.outputs.tag }}"
-          releaseBody: "Release v${{ needs.prepare-release.outputs.version }} - See CHANGELOG.md for details"
-          releaseDraft: true
+          tag_name: ${{ needs.prepare-release.outputs.tag }}
+          name: "mpesa2csv ${{ needs.prepare-release.outputs.tag }}"
+          body: |
+            ## What's New in v${{ needs.prepare-release.outputs.version }}
+
+            ${{ steps.changelog.outputs.total_changes > 0 && format('📊 **Release Summary**: {0} changes', steps.changelog.outputs.total_changes) || '' }}
+
+            ${{ steps.changelog.outputs.breaking > 0 && '> ⚠️ **BREAKING CHANGES**: This release contains breaking changes. Please review the changelog carefully before updating.' || '' }}
+
+            ${{ steps.changelog.outputs.security > 0 && '> 🔒 **SECURITY UPDATE**: This release includes important security fixes. We recommend updating as soon as possible.' || '' }}
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ${{ steps.changelog.outputs.features > 0 && steps.changelog.outputs.fixes > 0 && format('🎯 **Highlights**: This release brings {0} new features and fixes {1} bugs for a better user experience.', steps.changelog.outputs.features, steps.changelog.outputs.fixes) || '' }}
+            ${{ steps.changelog.outputs.features > 0 && steps.changelog.outputs.fixes == 0 && format('✨ **Feature Release**: Introducing {0} new features to enhance your workflow.', steps.changelog.outputs.features) || '' }}
+            ${{ steps.changelog.outputs.features == 0 && steps.changelog.outputs.fixes > 0 && format('🔧 **Maintenance Release**: This update focuses on stability with {0} bug fixes.', steps.changelog.outputs.fixes) || '' }}
+
+            ---
+
+            ## 📥 Download & Installation
+
+            Choose the appropriate download for your platform:
+
+            | Platform | Architecture | Download | Installation |
+            |----------|-------------|----------|--------------|
+            | **Windows** | x64 (Intel/AMD) | [📥 Download .exe](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_x64-setup.exe) | Run the installer and follow the setup wizard |
+            | **macOS** | Apple Silicon (M1/M2/M3) | [📥 Download .dmg](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_aarch64.dmg) | Open DMG and drag to Applications |
+            | **macOS** | Intel x64 | [📥 Download .dmg](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_x64.dmg) | Open DMG and drag to Applications |
+            | **Linux** | x64 (Ubuntu/Debian) | [📥 Download .deb](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.deb) | `sudo dpkg -i mpesa2csv_*.deb` |
+            | **Linux** | x64 (Portable) | [📥 Download .AppImage](https://github.com/DavidAmunga/mpesa2csv/releases/download/${{ needs.prepare-release.outputs.tag }}/mpesa2csv_${{ needs.prepare-release.outputs.version }}_amd64.AppImage) | `chmod +x mpesa2csv_*.AppImage && ./mpesa2csv_*.AppImage` |
+
+            ### 📊 Release Metadata
+
+            - **Version**: `${{ needs.prepare-release.outputs.version }}`
+            - **Build Date**: `${{ steps.timestamp.outputs.build_time }}`
+            - **Total Changes**: ${{ steps.changelog.outputs.total_changes }}
+            - **Platforms**: Windows, macOS (Intel + Apple Silicon), Linux
+            ${{ steps.changelog.outputs.breaking > 0 && format('- **Breaking Changes**: {0}', steps.changelog.outputs.breaking) || '' }}
+
+            ### 🔍 System Requirements
+
+            - **Windows**: Windows 10 version 1903 or later
+            - **macOS**: macOS 10.15 Catalina or later  
+            - **Linux**: Modern distribution with GTK 3.24+ and WebKit2GTK 4.1+
+
+            ### 🔄 Auto-Update
+
+            > **Note**: If you have a previous version installed, the app will automatically notify you when this update is available and guide you through the update process.
+
+            ---
+
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.changelog.outputs.previous_version || '0.0.2' }}...v${{ needs.prepare-release.outputs.version }}
+          draft: false
           prerelease: false
-          args: ${{ matrix.args }}
-
-  # Step 6: Publish the draft release
-  publish-release:
-    name: "Publish Draft Release"
-    needs:
-      [
-        check-release,
-        pre-release-validation,
-        prepare-release,
-        build-and-release,
-      ]
-    if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Publish release
-        run: |
-          TAG="${{ needs.prepare-release.outputs.tag }}"
-          echo "📢 Publishing draft release $TAG..."
-
-          # Publish the draft release
-          gh release edit "$TAG" --draft=false
-
-          echo "✅ Release published successfully"
+          files: |
+            src-tauri/target/*/release/bundle/**/*.dmg
+            src-tauri/target/*/release/bundle/**/*.deb
+            src-tauri/target/*/release/bundle/**/*.AppImage
+            src-tauri/target/*/release/bundle/**/*.exe
+            src-tauri/target/*/release/bundle/**/*.msi
+            src-tauri/target/*/release/bundle/**/*.tar.gz
+            src-tauri/target/*/release/bundle/**/*.sig
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Step 7: Generate and upload updater JSON
+  # Step 6: Generate and upload updater JSON
   generate-updater-json:
     name: "Generate Updater JSON"
     needs:
@@ -794,7 +853,6 @@ jobs:
         pre-release-validation,
         prepare-release,
         build-and-release,
-        publish-release,
       ]
     if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true'
     runs-on: ubuntu-latest
@@ -874,7 +932,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Step 8: Create release branch for hotfixes
+  # Step 7: Create release branch for hotfixes
   create-release-branch:
     name: "Create Release Branch"
     needs:
@@ -883,7 +941,6 @@ jobs:
         pre-release-validation,
         prepare-release,
         build-and-release,
-        publish-release,
         generate-updater-json,
       ]
     if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true'
@@ -893,7 +950,7 @@ jobs:
       max_branches: 5
     secrets: inherit
 
-  # Step 9: Notify about release completion
+  # Step 8: Notify about release completion
   notify-completion:
     name: "Release Complete"
     runs-on: ubuntu-latest
@@ -902,7 +959,6 @@ jobs:
         pre-release-validation,
         prepare-release,
         build-and-release,
-        publish-release,
         generate-updater-json,
         create-release-branch,
       ]
