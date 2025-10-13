@@ -679,47 +679,9 @@ jobs:
               # Count total changes
               TOTAL_CHANGES=$(echo "$CHANGELOG_CONTENT" | grep "^-" | wc -l | tr -d ' ')
               
-              # Create formatted changelog with emojis
-              FORMATTED_CHANGELOG=""
-              if [ "$FEATURES" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ✨ New Features ($FEATURES)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?feat:" | sed 's/^- /-  /')"$'\n\n'
-              fi
+              FORMATTED_CHANGELOG="$CHANGELOG_CONTENT"
               
-              if [ "$FIXES" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🐛 Bug Fixes ($FIXES)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?fix:" | sed 's/^- /-  /')"$'\n\n'
-              fi
-              
-              if [ "$BREAKING" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ⚠️ Breaking Changes ($BREAKING)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -E "BREAKING CHANGE|!" | sed 's/^- /- /')"$'\n\n'
-              fi
-              
-              if [ "$PERF" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### ⚡ Performance Improvements ($PERF)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?perf:" | sed 's/^- /-  /')"$'\n\n'
-              fi
-              
-              if [ "$REFACTOR" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔧 Code Refactoring ($REFACTOR)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?refactor:" | sed 's/^- /-  /')"$'\n\n'
-              fi
-              
-              if [ "$DOCS" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 📚 Documentation ($DOCS)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -E "(^- [a-f0-9]+: )?docs:" | sed 's/^- /-  /')"$'\n\n'
-              fi
-              
-              if [ "$SECURITY" -gt 0 ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔒 Security Updates ($SECURITY)"$'\n'"$(echo "$CHANGELOG_CONTENT" | grep -i "security\|vulnerability\|cve\|exploit" | sed 's/^- /-  /')"$'\n\n'
-              fi
-              
-              # Add other changes if any
-              OTHER_CHANGES=$(echo "$CHANGELOG_CONTENT" | grep -v -E "feat:|fix:|BREAKING CHANGE|!|perf:|refactor:|docs:|chore:|security|vulnerability|cve|exploit" | grep "^-" || true)
-              if [ -n "$OTHER_CHANGES" ]; then
-                FORMATTED_CHANGELOG="${FORMATTED_CHANGELOG}### 🔄 Other Changes"$'\n'"$OTHER_CHANGES"$'\n\n'
-              fi
-              
-              # If no categorized changes found, use original content
-              if [ -z "$FORMATTED_CHANGELOG" ]; then
-                FORMATTED_CHANGELOG="$CHANGELOG_CONTENT"
-              fi
-              
+              # Sanitize: remove all control characters except newline, escape backslashes and quotes
               FORMATTED_CHANGELOG=$(printf '%s' "$FORMATTED_CHANGELOG" | LC_ALL=C tr -d '\000-\011\013-\037\177' | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
               
               echo "changelog<<EOF" >> $GITHUB_OUTPUT
@@ -784,7 +746,7 @@ jobs:
 
             ---
 
-            ## 📥 Installation
+            ## Installation
 
             Download the appropriate file for your platform from the assets below:
 
