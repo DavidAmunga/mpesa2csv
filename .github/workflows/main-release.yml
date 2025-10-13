@@ -511,15 +511,9 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build frontend
-        run: pnpm build
-
       - name: Setup JRE for Tabula
         shell: bash
-        run: |
-          echo "🔧 Setting up JRE for Tabula PDF processing..."
-          bash src-tauri/scripts/setup-build-jre.sh
-          echo "✅ JRE setup completed"
+        run: bash src-tauri/scripts/setup-build-jre.sh
 
       - name: Extract changelog for release
         id: changelog
