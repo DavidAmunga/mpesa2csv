@@ -552,70 +552,70 @@ jobs:
         shell: bash
         run: |
           echo "🔧 Setting up AppImage build tools for CI environment..."
-          
+
           # Create tools directory
           mkdir -p ~/.local/bin
           export PATH="$HOME/.local/bin:$PATH"
-          
+
           # Pre-download and extract linuxdeploy (so it doesn't need FUSE)
           echo "⬇️  Downloading linuxdeploy..."
           cd ~/.local/bin
-          
+
           # Download linuxdeploy
           wget -q https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
-          
+
           # Extract it so it doesn't need FUSE
           ./linuxdeploy-x86_64.AppImage --appimage-extract >/dev/null 2>&1 || true
           if [ -d "squashfs-root" ]; then
             mv squashfs-root linuxdeploy-extracted
             # Create a wrapper script
             cat > linuxdeploy-x86_64.AppImage << 'EOF'
-#!/bin/bash
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec "$DIR/linuxdeploy-extracted/AppRun" "$@"
-EOF
+          #!/bin/bash
+          DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          exec "$DIR/linuxdeploy-extracted/AppRun" "$@"
+          EOF
             chmod +x linuxdeploy-x86_64.AppImage
             echo "✅ linuxdeploy extracted and ready"
           fi
-          
+
           # Download linuxdeploy-plugin-appimage
           echo "⬇️  Downloading linuxdeploy-plugin-appimage..."
           wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage
           chmod +x linuxdeploy-plugin-appimage-x86_64.AppImage
-          
+
           # Extract it
           ./linuxdeploy-plugin-appimage-x86_64.AppImage --appimage-extract >/dev/null 2>&1 || true
           if [ -d "squashfs-root" ]; then
             mv squashfs-root linuxdeploy-plugin-appimage-extracted
             # Create a wrapper script
             cat > linuxdeploy-plugin-appimage-x86_64.AppImage << 'EOF'
-#!/bin/bash
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export APPIMAGE_EXTRACT_AND_RUN=1
-exec "$DIR/linuxdeploy-plugin-appimage-extracted/AppRun" "$@"
-EOF
+          #!/bin/bash
+          DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          exec "$DIR/linuxdeploy-plugin-appimage-extracted/AppRun" "$@"
+          EOF
             chmod +x linuxdeploy-plugin-appimage-x86_64.AppImage
             echo "✅ linuxdeploy-plugin-appimage extracted and ready"
           fi
-          
+
           # Download GTK and GStreamer plugins (these are shell scripts, not AppImages)
           echo "⬇️  Downloading GTK plugin..."
           wget -q https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
           chmod +x linuxdeploy-plugin-gtk.sh
-          
+
           echo "⬇️  Downloading GStreamer plugin..."
           wget -q https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gstreamer/master/linuxdeploy-plugin-gstreamer.sh
           chmod +x linuxdeploy-plugin-gstreamer.sh
-          
+
           echo "✅ All plugins downloaded"
-          
+
           # Add to PATH for the rest of the workflow
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-          
+
           # Return to workspace
           cd "$GITHUB_WORKSPACE"
-          
+
           # Verify JRE is set up
           echo ""
           echo "🔍 Verifying build environment..."
@@ -625,12 +625,12 @@ EOF
           else
             echo "⚠️ JRE directory not found"
           fi
-          
+
           # List what's in PATH
           echo ""
           echo "Tools in ~/.local/bin:"
           ls -lh ~/.local/bin/ | grep -E "linuxdeploy|AppImage" || echo "No tools found"
-          
+
           echo "✅ AppImage build tools setup complete"
 
       - name: Extract changelog for release
