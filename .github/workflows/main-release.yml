@@ -499,14 +499,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.build_name }}-build-
 
-      - name: Cache JRE for Tabula
-        uses: actions/cache@v4
-        with:
-          path: |
-            src-tauri/resources/build-jre
-          key: ${{ runner.os }}-${{ matrix.target }}-jre-build-${{ hashFiles('src-tauri/scripts/setup-build-jre.sh') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.target }}-jre-build-
+        - name: Cache JRE for Tabula
+          uses: actions/cache@v4
+          with:
+            path: |
+              src-tauri/resources/build-jre
+            key: ${{ runner.os }}-${{ matrix.target }}-jre-build-v2-${{ hashFiles('src-tauri/scripts/setup-build-jre.sh') }}
+            restore-keys: |
+              ${{ runner.os }}-${{ matrix.target }}-jre-build-v2-
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
