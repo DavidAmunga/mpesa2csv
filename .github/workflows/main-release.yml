@@ -426,7 +426,22 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf curl wget unzip
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            curl \
+            wget \
+            unzip \
+            libfuse2 \
+            file \
+            libglib2.0-dev
+
+          # Configure AppImage environment for CI
+          # AppImages need FUSE but GitHub Actions doesn't have it by default
+          # We'll extract the AppImage instead of running it with FUSE
+          echo "APPIMAGE_EXTRACT_AND_RUN=1" >> $GITHUB_ENV
 
       - name: Install create-dmg (macOS)
         if: matrix.platform == 'macos-latest'
@@ -515,6 +530,29 @@ jobs:
         shell: bash
         run: bash src-tauri/scripts/setup-build-jre.sh
 
+      - name: Verify AppImage build environment (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          echo "🔍 Verifying AppImage build environment..."
+
+          # Check system dependencies
+          echo "Checking libfuse2..."
+          ldconfig -p | grep libfuse.so || echo "⚠️ libfuse2 may not be properly installed"
+
+          # Check environment variables
+          echo "APPIMAGE_EXTRACT_AND_RUN: ${APPIMAGE_EXTRACT_AND_RUN:-not set}"
+
+          # Verify JRE is set up
+          if [ -d "src-tauri/resources/build-jre" ]; then
+            echo "✅ JRE directory exists"
+            echo "JRE size: $(du -sh src-tauri/resources/build-jre | cut -f1)"
+          else
+            echo "⚠️ JRE directory not found"
+          fi
+
+          echo "✅ AppImage environment verification complete"
+
       - name: Extract changelog for release
         id: changelog
         shell: bash
@@ -602,6 +640,8 @@ jobs:
                 FORMATTED_CHANGELOG="$CHANGELOG_CONTENT"
               fi
               
+              FORMATTED_CHANGELOG=$(echo "$FORMATTED_CHANGELOG" | tr -d '\r\t' | sed 's/\\/\\\\/g')
+              
               echo "changelog<<EOF" >> $GITHUB_OUTPUT
               echo "$FORMATTED_CHANGELOG" >> $GITHUB_OUTPUT
               echo "EOF" >> $GITHUB_OUTPUT
@@ -652,6 +692,9 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          NO_STRIP: "true"
+          VERBOSE: "1"
         with:
           tagName: ${{ needs.prepare-release.outputs.tag }}
           releaseName: "mpesa2csv ${{ needs.prepare-release.outputs.tag }}"
@@ -715,36 +758,43 @@ jobs:
           if command -v gh &> /dev/null; then
             GITHUB_NOTES=$(gh api repos/${{ github.repository }}/releases/latest --jq '.body' 2>/dev/null || echo "")
             if [ -n "$GITHUB_NOTES" ] && [ "$GITHUB_NOTES" != "null" ]; then
-              # Truncate if too long and clean up markdown
-              RELEASE_NOTES=$(echo "$GITHUB_NOTES" | head -20 | sed 's/^## /## /g' | sed 's/^### /### /g')
+              # Truncate if too long and clean up markdown, sanitize control characters
+              RELEASE_NOTES=$(echo "$GITHUB_NOTES" | head -20 | sed 's/^## /## /g' | sed 's/^### /### /g' | tr -d '\r\t')
             fi
           fi
 
-          cat > latest.json << EOF
-          {
-            "version": "$VERSION",
-            "notes": "$RELEASE_NOTES",
-            "pub_date": "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")",
-            "platforms": {
-              "darwin-aarch64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_aarch64.app.tar.gz"
-              },
-              "darwin-x86_64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_x64.app.tar.gz"
-              },
-              "linux-x86_64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_amd64.AppImage"
-              },
-              "windows-x86_64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64-setup.exe"
+          # Use jq to properly create JSON with escaped strings
+          jq -n \
+            --arg version "$VERSION" \
+            --arg notes "$RELEASE_NOTES" \
+            --arg pub_date "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")" \
+            --arg darwin_aarch64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_aarch64.app.tar.gz" \
+            --arg darwin_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_x64.app.tar.gz" \
+            --arg linux_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_amd64.AppImage" \
+            --arg windows_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64-setup.exe" \
+            '{
+              version: $version,
+              notes: $notes,
+              pub_date: $pub_date,
+              platforms: {
+                "darwin-aarch64": {
+                  signature: "",
+                  url: $darwin_aarch64_url
+                },
+                "darwin-x86_64": {
+                  signature: "",
+                  url: $darwin_x86_64_url
+                },
+                "linux-x86_64": {
+                  signature: "",
+                  url: $linux_x86_64_url
+                },
+                "windows-x86_64": {
+                  signature: "",
+                  url: $windows_x86_64_url
+                }
               }
-            }
-          }
-          EOF
+            }' > latest.json
 
           echo "📄 Generated latest.json:"
           cat latest.json
