@@ -177,6 +177,11 @@ download_jre() {
     # Clean up archive
     rm "$ARCHIVE_FILE"
     
+    chmod -R u+r "$EXTRACT_DIR" 2>/dev/null || true
+    chmod -R a+r "$EXTRACT_DIR" 2>/dev/null || true
+    find "$EXTRACT_DIR" -type d -exec chmod u+rx {} \; 2>/dev/null || true
+    find "$EXTRACT_DIR" -type d -exec chmod a+rx {} \; 2>/dev/null || true
+    
     print_success "JRE extracted successfully" >&2
     echo "$EXTRACT_DIR"
 }
@@ -233,6 +238,11 @@ create_minimal_jre() {
         --output "$OUTPUT_DIR" 2>&1 | grep -v "Warning" || [ ${PIPESTATUS[0]} -eq 0 ]; then
         
         if [ -d "$OUTPUT_DIR" ]; then
+            chmod -R u+r "$OUTPUT_DIR" 2>/dev/null || true
+            chmod -R a+r "$OUTPUT_DIR" 2>/dev/null || true
+            find "$OUTPUT_DIR" -type d -exec chmod u+rx {} \; 2>/dev/null || true
+            find "$OUTPUT_DIR" -type d -exec chmod a+rx {} \; 2>/dev/null || true
+            
             local SIZE=$(du -sh "$OUTPUT_DIR" | cut -f1)
             print_success "Minimal JRE created successfully (Size: $SIZE)" >&2
             return 0
@@ -252,6 +262,12 @@ copy_full_jre() {
     
     cp -r "$SOURCE_JRE" "$OUTPUT_DIR"
     
+    # Fix permissions after copying
+    chmod -R u+r "$OUTPUT_DIR" 2>/dev/null || true
+    chmod -R a+r "$OUTPUT_DIR" 2>/dev/null || true
+    find "$OUTPUT_DIR" -type d -exec chmod u+rx {} \; 2>/dev/null || true
+    find "$OUTPUT_DIR" -type d -exec chmod a+rx {} \; 2>/dev/null || true
+    
     local SIZE=$(du -sh "$OUTPUT_DIR" | cut -f1)
     print_success "Full JRE copied successfully (Size: $SIZE)" >&2
 }
@@ -260,7 +276,14 @@ copy_full_jre() {
 set_java_permissions() {
     local JRE_PATH=$1
     
-    print_info "Setting executable permissions..." >&2
+    print_info "Setting permissions on JRE files..." >&2
+    
+    # First, ensure all files and directories are readable
+    # This is critical for Tauri's build process which checks file changes
+    chmod -R u+r "$JRE_PATH" 2>/dev/null || true
+    chmod -R a+r "$JRE_PATH" 2>/dev/null || true
+    find "$JRE_PATH" -type d -exec chmod u+rx {} \; 2>/dev/null || true
+    find "$JRE_PATH" -type d -exec chmod a+rx {} \; 2>/dev/null || true
     
     # Try multiple possible locations for Java binary
     local POSSIBLE_PATHS=(
