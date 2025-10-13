@@ -556,6 +556,7 @@ jobs:
             echo "✅ Both JREs downloaded successfully"
           else
             # For other platforms, use default detection
+            # The script will automatically configure Linux JRE for AppImage bundling
             bash src-tauri/scripts/setup-build-jre.sh
           fi
 
@@ -735,8 +736,30 @@ jobs:
       - name: Build Tauri app
         id: tauri-build
         continue-on-error: true
+        shell: bash
         run: |
           echo "🔨 Building Tauri app for ${{ matrix.build_name }}..."
+
+          # Configure LD_LIBRARY_PATH for Linux to help linuxdeploy find JRE libraries
+          if [[ "${{ matrix.platform }}" == "ubuntu-22.04" ]]; then
+            echo "🔧 Configuring LD_LIBRARY_PATH for Linux AppImage bundling..."
+            # Find all JRE lib directories that might contain libjvm.so
+            JRE_DIRS=$(find src-tauri/resources/build-jre -type d -name "lib" 2>/dev/null || echo "")
+            if [ -n "$JRE_DIRS" ]; then
+              for JRE_LIB in $JRE_DIRS; do
+                # Add both lib/ and lib/server/ directories to LD_LIBRARY_PATH
+                if [ -d "$JRE_LIB/server" ]; then
+                  export LD_LIBRARY_PATH="$PWD/$JRE_LIB/server:${LD_LIBRARY_PATH}"
+                  echo "  Added to LD_LIBRARY_PATH: $PWD/$JRE_LIB/server"
+                fi
+                export LD_LIBRARY_PATH="$PWD/$JRE_LIB:${LD_LIBRARY_PATH}"
+                echo "  Added to LD_LIBRARY_PATH: $PWD/$JRE_LIB"
+              done
+              echo "✅ LD_LIBRARY_PATH configured: $LD_LIBRARY_PATH"
+            else
+              echo "⚠️  Warning: No JRE lib directories found"
+            fi
+          fi
 
           # Build with retry logic
           set +e

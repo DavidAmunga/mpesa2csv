@@ -454,7 +454,102 @@ main() {
     fi
     print_success "==========================================" >&2
     echo "" >&2
+    
+    # Configure JRE for Linux AppImage bundling
+    if [[ "$PLATFORM_JRE" == "jre-linux-"* ]]; then
+        configure_linux_jre_bundling "$FINAL_JRE_PATH"
+    fi
+    
     print_info "You can now run: pnpm tauri build" >&2
+    echo "" >&2
+}
+
+# Configure JRE for Linux AppImage bundling
+# This helps linuxdeploy find libjvm.so and other JRE dependencies
+configure_linux_jre_bundling() {
+    local JRE_PATH=$1
+    
+    echo "" >&2
+    print_info "==========================================" >&2
+    print_info "Configuring JRE for Linux AppImage bundling..." >&2
+    print_info "==========================================" >&2
+    
+    # Find the lib directory
+    local LIB_DIR="$JRE_PATH/lib"
+    
+    if [ ! -d "$LIB_DIR" ]; then
+        print_warning "lib directory not found at $LIB_DIR" >&2
+        print_warning "Skipping Linux bundling configuration..." >&2
+        return 0
+    fi
+    
+    # Check if libjvm.so exists in server subdirectory
+    local LIBJVM_SERVER="$LIB_DIR/server/libjvm.so"
+    
+    if [ ! -f "$LIBJVM_SERVER" ]; then
+        print_info "libjvm.so not in server/ subdirectory, checking other locations..." >&2
+        local LIBJVM_PATH=$(find "$JRE_PATH" -name "libjvm.so" -type f 2>/dev/null | head -1)
+        if [ -z "$LIBJVM_PATH" ]; then
+            print_warning "Could not find libjvm.so in JRE directory" >&2
+            print_warning "AppImage bundling may fail. Consider using full JRE instead." >&2
+            return 0
+        fi
+        LIBJVM_SERVER="$LIBJVM_PATH"
+        print_info "Found libjvm.so at: $LIBJVM_SERVER" >&2
+    fi
+    
+    # Create symlinks to help linuxdeploy find libraries
+    # linuxdeploy searches in lib/ but not lib/server/, so we create symlinks
+    print_info "Creating symlinks for linuxdeploy compatibility..." >&2
+    
+    if [ -d "$LIB_DIR/server" ] && [ ! -f "$LIB_DIR/libjvm.so" ]; then
+        ln -sf "server/libjvm.so" "$LIB_DIR/libjvm.so" 2>/dev/null || true
+        print_success "Created symlink: lib/libjvm.so -> server/libjvm.so" >&2
+    fi
+    
+    # Create symlinks for other server libraries
+    if [ -d "$LIB_DIR/server" ]; then
+        local SYMLINK_COUNT=0
+        for lib in "$LIB_DIR/server/"*.so*; do
+            if [ -f "$lib" ]; then
+                local libname=$(basename "$lib")
+                if [ ! -e "$LIB_DIR/$libname" ]; then
+                    ln -sf "server/$libname" "$LIB_DIR/$libname" 2>/dev/null || true
+                    SYMLINK_COUNT=$((SYMLINK_COUNT + 1))
+                fi
+            fi
+        done
+        if [ $SYMLINK_COUNT -gt 0 ]; then
+            print_success "Created $SYMLINK_COUNT additional symlinks" >&2
+        fi
+    fi
+    
+    # Configure RPATH for better dependency resolution
+    if command -v patchelf >/dev/null 2>&1; then
+        print_info "Configuring RPATH for JRE libraries..." >&2
+        
+        # Set RPATH for libjvm.so
+        if [ -f "$LIBJVM_SERVER" ]; then
+            patchelf --set-rpath '$ORIGIN:$ORIGIN/..:$ORIGIN/../lib' "$LIBJVM_SERVER" 2>/dev/null || true
+        fi
+        
+        # Configure RPATH for other libraries in server directory
+        if [ -d "$LIB_DIR/server" ]; then
+            for lib in "$LIB_DIR/server/"*.so*; do
+                if [ -f "$lib" ]; then
+                    patchelf --set-rpath '$ORIGIN:$ORIGIN/..:$ORIGIN/../lib' "$lib" 2>/dev/null || true
+                fi
+            done
+        fi
+        
+        print_success "RPATH configuration complete" >&2
+    else
+        print_info "patchelf not available, skipping RPATH configuration" >&2
+    fi
+    
+    print_success "==========================================" >&2
+    print_success "Linux AppImage bundling configuration complete!" >&2
+    print_success "==========================================" >&2
     echo "" >&2
 }
 
