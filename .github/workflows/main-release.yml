@@ -740,11 +740,40 @@ jobs:
           tagName: ${{ needs.prepare-release.outputs.tag }}
           releaseName: "mpesa2csv ${{ needs.prepare-release.outputs.tag }}"
           releaseBody: "Release v${{ needs.prepare-release.outputs.version }} - See CHANGELOG.md for details"
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
 
-  # Step 6: Generate and upload updater JSON
+  # Step 6: Publish the draft release
+  publish-release:
+    name: "Publish Draft Release"
+    needs:
+      [
+        check-release,
+        pre-release-validation,
+        prepare-release,
+        build-and-release,
+      ]
+    if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish release
+        run: |
+          TAG="${{ needs.prepare-release.outputs.tag }}"
+          echo "📢 Publishing draft release $TAG..."
+
+          # Publish the draft release
+          gh release edit "$TAG" --draft=false
+
+          echo "✅ Release published successfully"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Step 7: Generate and upload updater JSON
   generate-updater-json:
     name: "Generate Updater JSON"
     needs:
@@ -753,6 +782,7 @@ jobs:
         pre-release-validation,
         prepare-release,
         build-and-release,
+        publish-release,
       ]
     if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true'
     runs-on: ubuntu-latest
@@ -832,7 +862,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Step 7: Create release branch for hotfixes
+  # Step 8: Create release branch for hotfixes
   create-release-branch:
     name: "Create Release Branch"
     needs:
@@ -841,6 +871,7 @@ jobs:
         pre-release-validation,
         prepare-release,
         build-and-release,
+        publish-release,
         generate-updater-json,
       ]
     if: needs.check-release.outputs.should_release == 'true' && needs.pre-release-validation.outputs.validation_passed == 'true'
@@ -850,7 +881,7 @@ jobs:
       max_branches: 5
     secrets: inherit
 
-  # Step 8: Notify about release completion
+  # Step 9: Notify about release completion
   notify-completion:
     name: "Release Complete"
     runs-on: ubuntu-latest
@@ -859,6 +890,7 @@ jobs:
         pre-release-validation,
         prepare-release,
         build-and-release,
+        publish-release,
         generate-updater-json,
         create-release-branch,
       ]
