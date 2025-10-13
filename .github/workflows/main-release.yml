@@ -361,6 +361,18 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Clean up any existing draft releases for this tag
+          echo "🧹 Checking for existing draft releases with tag $TAG..."
+          RELEASE_ID=$(gh release view "$TAG" --json id,isDraft --jq 'select(.isDraft == true) | .id' 2>/dev/null || echo "")
+
+          if [ -n "$RELEASE_ID" ]; then
+            echo "🗑️  Deleting existing draft release for $TAG..."
+            gh release delete "$TAG" --yes || echo "⚠️  Failed to delete, continuing..."
+            echo "✅ Cleaned up existing draft release"
+          else
+            echo "✅ No existing draft release found"
+          fi
+
           # Check if tag exists locally
           if ! git tag -l "$TAG" | grep -q "$TAG"; then
             # Check if tag exists remotely
