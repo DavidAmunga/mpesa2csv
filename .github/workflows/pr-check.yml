@@ -132,10 +132,11 @@ jobs:
             ${{ runner.os }}-jre-
 
       - name: Install dependencies
-        if: matrix.test_type == 'frontend' || matrix.test_type == 'tauri'
+        if: matrix.test_type == 'frontend' || matrix.test_type == 'tauri' || matrix.test_type == 'security'
         run: pnpm install --frozen-lockfile
 
       - name: Frontend type check and build
+        if: matrix.test_type == 'frontend' || matrix.test_type == 'tauri'
         run: pnpm run build
 
       - name: Setup JRE for Tabula
