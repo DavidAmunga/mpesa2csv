@@ -504,9 +504,9 @@ jobs:
         with:
           path: |
             src-tauri/resources/build-jre
-          key: ${{ runner.os }}-${{ matrix.target }}-jre-${{ hashFiles('src-tauri/scripts/setup-build-jre.sh') }}
+          key: ${{ runner.os }}-${{ matrix.target }}-jre-build-${{ hashFiles('src-tauri/scripts/setup-build-jre.sh') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.target }}-jre-
+            ${{ runner.os }}-${{ matrix.target }}-jre-build-
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
