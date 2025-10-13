@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.7.0
+
+### Minor Changes
+
+- 97d245d: feat: Replace PDF.js with Tabula for improved PDF table extraction
+
 ## 0.6.1
 
 ### Patch Changes
