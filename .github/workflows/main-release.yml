@@ -739,30 +739,7 @@ jobs:
         with:
           tagName: ${{ needs.prepare-release.outputs.tag }}
           releaseName: "mpesa2csv ${{ needs.prepare-release.outputs.tag }}"
-          releaseBody: |
-            ## What's New in v${{ needs.prepare-release.outputs.version }}
-
-            ${{ steps.changelog.outputs.changelog }}
-
-            ---
-
-            ## Installation
-
-            Download the appropriate file for your platform from the assets below:
-
-            - **Windows**: `mpesa2csv_*_x64-setup.exe`
-            - **macOS Apple Silicon**: `mpesa2csv_*_aarch64.dmg`
-            - **macOS Intel**: `mpesa2csv_*_x64.dmg`
-            - **Linux**: `mpesa2csv_*_amd64.deb` or `mpesa2csv_*_amd64.AppImage`
-
-            ### System Requirements
-            - **Windows**: Windows 10 version 1903 or later
-            - **macOS**: macOS 10.15 Catalina or later  
-            - **Linux**: Modern distribution with GTK 3.24+ and WebKit2GTK 4.1+
-
-            ---
-
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.changelog.outputs.previous_version || '0.6.1' }}...v${{ needs.prepare-release.outputs.version }}
+          releaseBody: "Release v${{ needs.prepare-release.outputs.version }} - See CHANGELOG.md for details"
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
