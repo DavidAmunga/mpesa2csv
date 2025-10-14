@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.7.1
+
+### Patch Changes
+
+- 40276c7: feat: improve data parsing in tabulaService
+
 ## 0.7.0
 
 ### Minor Changes
