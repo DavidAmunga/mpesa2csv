@@ -223,8 +223,13 @@ create_minimal_jre() {
     # Modules required for Tabula PDF processing
     # java.base - Core Java functionality
     # java.sql - SQL support (required by Tabula)
-    local MODULES="java.base,java.sql"
-    
+    # java.desktop - Desktop functionality (required by Tabula)
+    # java.xml - XML support (required by Tabula)
+    # java.logging - Logging support (required by Tabula)
+    # java.naming - Naming support (required by Tabula)
+    # java.management - Management support (required by Tabula)
+    local MODULES="java.base,java.desktop,java.xml,java.sql,java.logging,java.naming,java.management"
+
     print_info "Creating minimal JRE with modules: $MODULES" >&2
     
     # Find jlink in the downloaded JRE first
