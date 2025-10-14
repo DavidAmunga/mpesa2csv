@@ -576,11 +576,17 @@ jobs:
             for arch in arm64 x64; do
               JRE_DIR="src-tauri/resources/build-jre/jre-macos-$arch"
               if [ -d "$JRE_DIR" ]; then
-                echo "✅ Found macOS $arch JRE"
+                echo "✅ Found macOS $arch JRE at: $JRE_DIR"
+                echo "   Size: $(du -sh "$JRE_DIR" | cut -f1)"
                 if [ -f "$JRE_DIR/bin/java" ]; then
                   echo "✅ java binary exists"
                   "$JRE_DIR/bin/java" -version 2>&1 || echo "⚠️  Could not run java"
+                else
+                  echo "❌ java binary NOT found at: $JRE_DIR/bin/java"
                 fi
+                echo ""
+              else
+                echo "❌ macOS $arch JRE NOT found at: $JRE_DIR"
               fi
             done
             exit 0
@@ -589,27 +595,30 @@ jobs:
           echo "Checking JRE directory: $JRE_DIR"
           if [ -d "$JRE_DIR" ]; then
             echo "✅ JRE directory exists"
-            echo "Directory size: $(du -sh "$JRE_DIR" | cut -f1)"
+            echo "   Size: $(du -sh "$JRE_DIR" | cut -f1)"
+            echo ""
             
             if [ -d "$JRE_DIR/bin" ]; then
               echo "✅ bin directory exists"
-              echo "Contents of bin directory:"
+              echo "   Contents of bin directory (first 20 files):"
               ls -lh "$JRE_DIR/bin" | head -20
             else
               echo "❌ bin directory NOT found"
-              echo "Contents of JRE directory:"
+              echo "   Contents of JRE directory:"
               ls -lh "$JRE_DIR"
             fi
+            echo ""
             
             if [ -f "$JAVA_EXE" ]; then
               echo "✅ Java executable exists at: $JAVA_EXE"
-              echo "Testing Java execution:"
+              echo "   Testing Java execution:"
               "$JAVA_EXE" -version 2>&1 || echo "⚠️  Java execution failed"
             else
               echo "❌ Java executable NOT found at: $JAVA_EXE"
             fi
           else
             echo "❌ JRE directory NOT found: $JRE_DIR"
+            echo ""
             echo "Contents of build-jre:"
             ls -lh src-tauri/resources/build-jre/ || echo "build-jre directory doesn't exist"
           fi

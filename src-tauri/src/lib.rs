@@ -18,18 +18,16 @@ async fn extract_pdf_tables(
         .resolve("tabula-1.0.5-jar-with-dependencies.jar", tauri::path::BaseDirectory::Resource)
         .map_err(|e| format!("Failed to resolve JAR: {}", e))?;
     
-    // Use the build-jre directory which contains only the platform-specific JRE
-    // The setup-build-jre.sh script downloads and prepares the appropriate JRE here before building
     let jre_folder = if cfg!(target_os = "windows") {
-        "build-jre/jre-windows-x64"
+        "jre-windows-x64"
     } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
-        "build-jre/jre-macos-x64"
+        "jre-macos-x64"
     } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-        "build-jre/jre-macos-arm64"
+        "jre-macos-arm64"
     } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        "build-jre/jre-linux-x64"
+        "jre-linux-x64"
     } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-        "build-jre/jre-linux-arm64"
+        "jre-linux-arm64"
     } else {
         return Err(format!("Unsupported platform: {} {}", std::env::consts::OS, std::env::consts::ARCH));
     };
