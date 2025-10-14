@@ -19,7 +19,7 @@
 </div>
 
 <div align="center">
-<img src="./assets/app-image-dark.png" alt="Screenshot of the application" width="200" />
+<img src="./assets/app-image-dark.png" alt="Screenshot of the application" width="350" />
 </div>
 
 ---
@@ -82,7 +82,7 @@ The application includes automatic update functionality. When a new version is a
 6. **Download** your converted file with a single click
 7. **Open** the file directly from the success notification
 
-## 🛠️ Development
+## Development
 
 ### Prerequisites
 
