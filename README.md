@@ -18,7 +18,9 @@
   
 </div>
 
-![Screenshot of the application](./assets/app-image.png)
+<div align="center">
+<img src="./assets/app-image-dark.png" alt="Screenshot of the application" width="200" />
+</div>
 
 ---
 
