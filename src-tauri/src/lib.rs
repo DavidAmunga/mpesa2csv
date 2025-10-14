@@ -30,6 +30,9 @@ async fn extract_pdf_tables(
 ) -> Result<String, String> {
     use std::process::Command;
     use tauri::Manager;
+    
+    #[cfg(target_os = "windows")]
+    use std::os::windows::process::CommandExt;
 
     let jar_path = app_handle
         .path()
@@ -76,10 +79,22 @@ async fn extract_pdf_tables(
     
     // Check if java binary exists and provide helpful error
     let (mut cmd, java_source) = if java_binary.exists() {
-        (Command::new(&java_binary), format!("bundled JRE at {:?}", java_binary))
+        let mut command = Command::new(&java_binary);
+        #[cfg(target_os = "windows")]
+        {
+            // Hide console window on Windows (CREATE_NO_WINDOW flag)
+            command.creation_flags(0x08000000);
+        }
+        (command, format!("bundled JRE at {:?}", java_binary))
     } else {
         // Fallback to system Java
-        (Command::new("java"), "system PATH (bundled JRE not found)".to_string())
+        let mut command = Command::new("java");
+        #[cfg(target_os = "windows")]
+        {
+            // Hide console window on Windows (CREATE_NO_WINDOW flag)
+            command.creation_flags(0x08000000);
+        }
+        (command, "system PATH (bundled JRE not found)".to_string())
     };
     
     let normalized_pdf_path = if cfg!(target_os = "windows") {
