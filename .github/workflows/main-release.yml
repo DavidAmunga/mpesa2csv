@@ -969,34 +969,54 @@ jobs:
             fi
           fi
 
+          # Download signature files from the release
+          echo "🔐 Downloading signature files..."
+          mkdir -p signatures
+
+          # Download each signature file, or use empty string if not found
+          gh release download "$TAG" -p "mpesa2csv_${VERSION}_aarch64.dmg.sig" -D signatures 2>/dev/null || echo "" > signatures/mpesa2csv_${VERSION}_aarch64.dmg.sig
+          gh release download "$TAG" -p "mpesa2csv_${VERSION}_x64.dmg.sig" -D signatures 2>/dev/null || echo "" > signatures/mpesa2csv_${VERSION}_x64.dmg.sig
+          gh release download "$TAG" -p "mpesa2csv_${VERSION}_amd64.AppImage.sig" -D signatures 2>/dev/null || echo "" > signatures/mpesa2csv_${VERSION}_amd64.AppImage.sig
+          gh release download "$TAG" -p "mpesa2csv_${VERSION}_x64-setup.exe.sig" -D signatures 2>/dev/null || echo "" > signatures/mpesa2csv_${VERSION}_x64-setup.exe.sig
+
+          # Read signature files
+          DARWIN_AARCH64_SIG=$(cat signatures/mpesa2csv_${VERSION}_aarch64.dmg.sig 2>/dev/null || echo "")
+          DARWIN_X86_64_SIG=$(cat signatures/mpesa2csv_${VERSION}_x64.dmg.sig 2>/dev/null || echo "")
+          LINUX_X86_64_SIG=$(cat signatures/mpesa2csv_${VERSION}_amd64.AppImage.sig 2>/dev/null || echo "")
+          WINDOWS_X86_64_SIG=$(cat signatures/mpesa2csv_${VERSION}_x64-setup.exe.sig 2>/dev/null || echo "")
+
           # Use jq to properly create JSON with escaped strings
           jq -n \
             --arg version "$VERSION" \
             --arg notes "$RELEASE_NOTES" \
             --arg pub_date "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")" \
             --arg darwin_aarch64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_aarch64.dmg" \
+            --arg darwin_aarch64_sig "$DARWIN_AARCH64_SIG" \
             --arg darwin_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64.dmg" \
+            --arg darwin_x86_64_sig "$DARWIN_X86_64_SIG" \
             --arg linux_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_amd64.AppImage" \
+            --arg linux_x86_64_sig "$LINUX_X86_64_SIG" \
             --arg windows_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64-setup.exe" \
+            --arg windows_x86_64_sig "$WINDOWS_X86_64_SIG" \
             '{
               version: $version,
               notes: $notes,
               pub_date: $pub_date,
               platforms: {
                 "darwin-aarch64": {
-                  signature: "",
+                  signature: $darwin_aarch64_sig,
                   url: $darwin_aarch64_url
                 },
                 "darwin-x86_64": {
-                  signature: "",
+                  signature: $darwin_x86_64_sig,
                   url: $darwin_x86_64_url
                 },
                 "linux-x86_64": {
-                  signature: "",
+                  signature: $linux_x86_64_sig,
                   url: $linux_x86_64_url
                 },
                 "windows-x86_64": {
-                  signature: "",
+                  signature: $windows_x86_64_sig,
                   url: $windows_x86_64_url
                 }
               }

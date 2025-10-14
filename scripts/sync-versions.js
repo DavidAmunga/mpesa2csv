@@ -30,20 +30,6 @@ const tauriConfPath = join(rootDir, "src-tauri", "tauri.conf.json");
 const tauriConf = JSON.parse(readFileSync(tauriConfPath, "utf8"));
 tauriConf.version = version;
 
-// Update updater endpoint to include current version
-if (
-  tauriConf.plugins &&
-  tauriConf.plugins.updater &&
-  tauriConf.plugins.updater.endpoints
-) {
-  tauriConf.plugins.updater.endpoints = [
-    `https://github.com/DavidAmunga/mpesa2csv/releases/download/v${version}/latest.json`,
-  ];
-  console.log(`✅ Updated updater endpoint to v${version}`);
-}
-
-writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2) + "\n");
-console.log("✅ Updated src-tauri/tauri.conf.json");
 
 // Update Android version (tauri.properties)
 const tauriPropertiesPath = join(
