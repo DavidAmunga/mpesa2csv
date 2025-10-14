@@ -393,7 +393,7 @@ function App() {
         setSavedFilePath(result);
       }
     } catch (error: any) {
-      console.error(error)
+      console.error(error);
       handleDownloadError(error);
     } finally {
       setIsDownloading(false);
@@ -456,13 +456,38 @@ function App() {
                 />
               </div>
             ) : status === FileStatus.PROCESSING ? (
-              <div className=" p-6 text-center flex flex-col items-center justify-center transition-all duration-300 min-h-[300px]">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-center">
-                  Processing file {currentFileIndex + 1} of {files.length}...
-                </p>
+              <div className="p-6 text-center flex flex-col items-center justify-center transition-all duration-300 min-h-[300px]">
+                <div className="relative mb-6 w-20 h-20">
+                  <div className="w-20 h-20 rounded-full bg-primary/20 animate-ping absolute"></div>
+                  <div className="w-20 h-20 rounded-full bg-primary/40 animate-pulse absolute"></div>
+                  <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center relative">
+                    <span className="text-2xl">📊</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-lg font-semibold">
+                    Processing Your Statements
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    File {currentFileIndex + 1} of {files.length}
+                  </p>
+
+                  {/* Progress bar */}
+                  <div className="w-64 h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-300"
+                      style={{
+                        width: `${
+                          ((currentFileIndex + 1) / files.length) * 100
+                        }%`,
+                      }}
+                    ></div>
+                  </div>
+                </div>
+
                 {files[currentFileIndex] && (
-                  <p className="text-sm text-muted-foreground mt-2 truncate max-w-full">
+                  <p className="text-xs text-muted-foreground mt-4 truncate max-w-full px-4">
                     {files[currentFileIndex].name}
                   </p>
                 )}

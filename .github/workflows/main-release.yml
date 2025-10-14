@@ -974,8 +974,8 @@ jobs:
             --arg version "$VERSION" \
             --arg notes "$RELEASE_NOTES" \
             --arg pub_date "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")" \
-            --arg darwin_aarch64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_aarch64.app.tar.gz" \
-            --arg darwin_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_x64.app.tar.gz" \
+            --arg darwin_aarch64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_aarch64.dmg" \
+            --arg darwin_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64.dmg" \
             --arg linux_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_amd64.AppImage" \
             --arg windows_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64-setup.exe" \
             '{

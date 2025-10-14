@@ -79,22 +79,32 @@ async fn extract_pdf_tables(
     
     // Check if java binary exists and provide helpful error
     let (mut cmd, java_source) = if java_binary.exists() {
-        let mut command = Command::new(&java_binary);
+        let command = Command::new(&java_binary);
         #[cfg(target_os = "windows")]
         {
             // Hide console window on Windows (CREATE_NO_WINDOW flag)
+            let mut command = command;
             command.creation_flags(0x08000000);
+            (command, format!("bundled JRE at {:?}", java_binary))
         }
-        (command, format!("bundled JRE at {:?}", java_binary))
+        #[cfg(not(target_os = "windows"))]
+        {
+            (command, format!("bundled JRE at {:?}", java_binary))
+        }
     } else {
         // Fallback to system Java
-        let mut command = Command::new("java");
+        let command = Command::new("java");
         #[cfg(target_os = "windows")]
         {
             // Hide console window on Windows (CREATE_NO_WINDOW flag)
+            let mut command = command;
             command.creation_flags(0x08000000);
+            (command, "system PATH (bundled JRE not found)".to_string())
         }
-        (command, "system PATH (bundled JRE not found)".to_string())
+        #[cfg(not(target_os = "windows"))]
+        {
+            (command, "system PATH (bundled JRE not found)".to_string())
+        }
     };
     
     let normalized_pdf_path = if cfg!(target_os = "windows") {
