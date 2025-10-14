@@ -3,6 +3,24 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+#[cfg(target_os = "windows")]
+fn normalize_windows_path(path: std::path::PathBuf) -> std::path::PathBuf {
+    use std::path::PathBuf;
+    
+    let path_str = path.to_string_lossy().to_string();
+    
+    if path_str.starts_with(r"\\?\") {
+        PathBuf::from(path_str.trim_start_matches(r"\\?\"))
+    } else {
+        path
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn normalize_windows_path(path: std::path::PathBuf) -> std::path::PathBuf {
+    path
+}
+
 #[tauri::command]
 async fn extract_pdf_tables(
     app_handle: tauri::AppHandle,
@@ -17,6 +35,8 @@ async fn extract_pdf_tables(
         .path()
         .resolve("tabula-1.0.5-jar-with-dependencies.jar", tauri::path::BaseDirectory::Resource)
         .map_err(|e| format!("Failed to resolve JAR: {}", e))?;
+    
+    let jar_path = normalize_windows_path(jar_path);
     
     let jre_folder = if cfg!(target_os = "windows") {
         "jre-windows-x64"
@@ -62,12 +82,28 @@ async fn extract_pdf_tables(
         (Command::new("java"), "system PATH (bundled JRE not found)".to_string())
     };
     
+    let normalized_pdf_path = if cfg!(target_os = "windows") {
+        use std::path::PathBuf;
+        let path_str = pdf_path.trim_start_matches(r"\\?\");
+        PathBuf::from(path_str)
+    } else {
+        std::path::PathBuf::from(&pdf_path)
+    };
+    
+    let normalized_output_path = if cfg!(target_os = "windows") {
+        use std::path::PathBuf;
+        let path_str = output_path.trim_start_matches(r"\\?\");
+        PathBuf::from(path_str)
+    } else {
+        std::path::PathBuf::from(&output_path)
+    };
+    
     cmd.arg("-jar")
         .arg(&jar_path)
-        .arg(&pdf_path)
+        .arg(&normalized_pdf_path)
         .arg("--format=CSV")
         .arg("--outfile")
-        .arg(&output_path)
+        .arg(&normalized_output_path)
         .arg("--pages")
         .arg("all");
     
