@@ -56,6 +56,9 @@ export function addChargesSheet(
       (t) => !t.details.toLowerCase().includes("charge")
     );
 
+    console.log("relatedTransactions",relatedTransactions)
+    console.log("nonChargeTransactions",nonChargeTransactions)
+
     let relatedAmount = 0;
     let chargePercentage = 0;
 

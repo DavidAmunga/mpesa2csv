@@ -92,10 +92,10 @@ export class TabulaService {
       if (fields[0]?.toLowerCase().includes("receipt")) continue;
 
       const transaction: Transaction = {
-        receiptNo: fields[0]?.trim() || "",
-        completionTime: fields[1]?.trim() || "",
-        details: fields[2]?.trim() || "",
-        transactionStatus: fields[3]?.trim() || "Unknown",
+        receiptNo: fields[0]?.trim().replace(/\r/g, " ") || "",
+        completionTime: fields[1]?.trim().replace(/\r/g, " ") || "",
+        details: fields[2]?.trim().replace(/\r/g, " ") || "",
+        transactionStatus: fields[3]?.trim().replace(/\r/g, " ") || "Unknown",
         paidIn: this.parseAmount(fields[4]),
         withdrawn: this.parseAmount(fields[5]),
         balance: this.parseAmount(fields[6]) || 0,
@@ -103,8 +103,8 @@ export class TabulaService {
       };
 
       if (isPaybillStatement && fields.length >= 8) {
-        const transactionType = fields[7]?.trim();
-        const otherParty = fields[8]?.trim();
+        const transactionType = fields[7]?.trim().replace(/\r/g, " ");
+        const otherParty = fields[8]?.trim().replace(/\r/g, " ");
 
         transaction.transactionType = transactionType;
         transaction.otherParty = otherParty;
@@ -161,7 +161,7 @@ export class TabulaService {
     try {
       const cleaned = amountStr.replace(/[^\d.-]/g, "");
       const parsed = parseFloat(cleaned);
-      return isNaN(parsed) ? null : parsed;
+      return isNaN(parsed) ? null : Math.abs(parsed);
     } catch {
       return null;
     }
