@@ -56,11 +56,14 @@ async fn extract_pdf_tables(
         )
     };
     
-    let mut cmd = if java_binary.exists() {
-        Command::new(&java_binary)
+    // Check if java binary exists and provide helpful error
+    let (mut cmd, java_source) = if java_binary.exists() {
+        (Command::new(&java_binary), format!("bundled JRE at {:?}", java_binary))
     } else {
-        Command::new("java")
+        // Fallback to system Java
+        (Command::new("java"), "system PATH (bundled JRE not found)".to_string())
     };
+    
     cmd.arg("-jar")
         .arg(&jar_path)
         .arg(&pdf_path)
@@ -76,7 +79,25 @@ async fn extract_pdf_tables(
     
     let output = cmd
         .output()
-        .map_err(|e| format!("Execution failed: {}", e))?;
+        .map_err(|e| {
+            format!(
+                "Failed to execute Java (using {}): {}\n\
+                Expected bundled Java at: {:?}\n\
+                JRE folder checked: {:?}\n\
+                JAR path: {:?}\n\
+                Error: {}",
+                java_source,
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    "Java executable not found. Please ensure Java is installed or the bundled JRE is properly configured."
+                } else {
+                    "Execution error"
+                },
+                java_binary,
+                jre_path,
+                jar_path,
+                e
+            )
+        })?;
     
     if output.status.success() {
         Ok(format!("Tables extracted successfully to: {}", output_path))

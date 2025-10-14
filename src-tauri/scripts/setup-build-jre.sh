@@ -165,13 +165,27 @@ download_jre() {
         tar -xzf "$ARCHIVE_FILE" -C "$EXTRACT_DIR" --strip-components=1
     elif [ "$EXT" = "zip" ]; then
         unzip -q "$ARCHIVE_FILE" -d "${EXTRACT_DIR}-temp"
+
+        print_info "Extracted contents:" >&2
+        ls -la "${EXTRACT_DIR}-temp" >&2 || true
         # Move contents from subdirectory
-        if [ -d "${EXTRACT_DIR}-temp/"*"-jre" ]; then
-            mv "${EXTRACT_DIR}-temp/"*"-jre"/* "$EXTRACT_DIR/"
+        JRE_SUBDIR=$(find "${EXTRACT_DIR}-temp" -maxdepth 1 -type d -name "*jre*" -o -name "jdk*" | head -1)
+        
+        if [ -n "$JRE_SUBDIR" ] && [ -d "$JRE_SUBDIR" ]; then
+            print_info "Found JRE subdirectory: $JRE_SUBDIR" >&2
+            mv "$JRE_SUBDIR"/* "$EXTRACT_DIR/"
             rm -rf "${EXTRACT_DIR}-temp"
         else
+            print_info "No JRE subdirectory found, moving all contents" >&2
             mv "${EXTRACT_DIR}-temp"/* "$EXTRACT_DIR/"
-            rmdir "${EXTRACT_DIR}-temp"
+            rmdir "${EXTRACT_DIR}-temp" 2>/dev/null || rm -rf "${EXTRACT_DIR}-temp"
+        fi
+        
+        # Verify bin directory exists
+        if [ ! -d "$EXTRACT_DIR/bin" ]; then
+            print_warning "Warning: bin directory not found after extraction" >&2
+            print_info "Directory contents:" >&2
+            ls -la "$EXTRACT_DIR" >&2 || true
         fi
     fi
     
@@ -181,7 +195,23 @@ download_jre() {
     find "$EXTRACT_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
     find "$EXTRACT_DIR" -type d -exec chmod 755 {} \; 2>/dev/null || true
     
+    # For Windows, ensure .exe files are executable
+    if [[ "$PLATFORM" == *"windows"* ]]; then
+        find "$EXTRACT_DIR/bin" -name "*.exe" -exec chmod 755 {} \; 2>/dev/null || true
+        find "$EXTRACT_DIR/bin" -name "*.dll" -exec chmod 755 {} \; 2>/dev/null || true
+    fi
+    
     print_success "JRE extracted successfully" >&2
+    
+    # Verify critical files exist
+    if [ -d "$EXTRACT_DIR/bin" ]; then
+        print_info "bin directory verified" >&2
+        print_info "Contents of bin:" >&2
+        ls "$EXTRACT_DIR/bin" | head -10 >&2 || true
+    else
+        print_error "bin directory missing!" >&2
+    fi
+    
     echo "$EXTRACT_DIR"
 }
 
@@ -277,13 +307,14 @@ set_java_permissions() {
     
     # Try multiple possible locations for Java binary
     local POSSIBLE_PATHS=(
-        "$JRE_PATH/bin/java"                          # jlink structure & Linux/Windows
+        "$JRE_PATH/bin/java.exe"                      # Windows
+        "$JRE_PATH/bin/java"                          # jlink structure & Linux
         "$JRE_PATH/Contents/Home/bin/java"            # Full macOS JRE structure
     )
     
     for path in "${POSSIBLE_PATHS[@]}"; do
         if [ -f "$path" ]; then
-            chmod 755 "$path"
+            chmod 755 "$path" 2>/dev/null || true
             print_success "Set executable permission for: $path" >&2
             find "$(dirname "$path")" -type f -exec chmod 755 {} \; 2>/dev/null || true
             return 0
@@ -300,16 +331,18 @@ verify_jre() {
     
     print_info "Verifying JRE installation..." >&2
     
-    # Find java executable
+    # Find java executable (check Windows first)
     local JAVA_BIN=""
-    if [ -f "$JRE_PATH/bin/java" ]; then
+    if [ -f "$JRE_PATH/bin/java.exe" ]; then
+        JAVA_BIN="$JRE_PATH/bin/java.exe"
+    elif [ -f "$JRE_PATH/bin/java" ]; then
         JAVA_BIN="$JRE_PATH/bin/java"
     elif [ -f "$JRE_PATH/Contents/Home/bin/java" ]; then
         JAVA_BIN="$JRE_PATH/Contents/Home/bin/java"
     fi
     
     if [ -n "$JAVA_BIN" ] && [ -f "$JAVA_BIN" ]; then
-        chmod +x "$JAVA_BIN"
+        chmod +x "$JAVA_BIN" 2>/dev/null || true
         
         # Test Java version
         if "$JAVA_BIN" -version 2>&1 | head -1 | grep -q "openjdk"; then
@@ -328,6 +361,10 @@ verify_jre() {
         fi
     else
         print_error "Java executable not found" >&2
+        print_info "Checked paths:" >&2
+        print_info "  - $JRE_PATH/bin/java.exe" >&2
+        print_info "  - $JRE_PATH/bin/java" >&2
+        print_info "  - $JRE_PATH/Contents/Home/bin/java" >&2
         return 1
     fi
 }

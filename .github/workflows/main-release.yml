@@ -560,6 +560,60 @@ jobs:
             bash src-tauri/scripts/setup-build-jre.sh
           fi
 
+      - name: Verify JRE Setup
+        shell: bash
+        run: |
+          echo "🔍 Verifying JRE setup..."
+
+          if [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
+            JRE_DIR="src-tauri/resources/build-jre/jre-windows-x64"
+            JAVA_EXE="$JRE_DIR/bin/java.exe"
+          elif [[ "${{ matrix.platform }}" == "ubuntu-22.04" ]]; then
+            JRE_DIR="src-tauri/resources/build-jre/jre-linux-x64"
+            JAVA_EXE="$JRE_DIR/bin/java"
+          elif [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
+            # Check both macOS JREs
+            for arch in arm64 x64; do
+              JRE_DIR="src-tauri/resources/build-jre/jre-macos-$arch"
+              if [ -d "$JRE_DIR" ]; then
+                echo "✅ Found macOS $arch JRE"
+                if [ -f "$JRE_DIR/bin/java" ]; then
+                  echo "✅ java binary exists"
+                  "$JRE_DIR/bin/java" -version 2>&1 || echo "⚠️  Could not run java"
+                fi
+              fi
+            done
+            exit 0
+          fi
+
+          echo "Checking JRE directory: $JRE_DIR"
+          if [ -d "$JRE_DIR" ]; then
+            echo "✅ JRE directory exists"
+            echo "Directory size: $(du -sh "$JRE_DIR" | cut -f1)"
+            
+            if [ -d "$JRE_DIR/bin" ]; then
+              echo "✅ bin directory exists"
+              echo "Contents of bin directory:"
+              ls -lh "$JRE_DIR/bin" | head -20
+            else
+              echo "❌ bin directory NOT found"
+              echo "Contents of JRE directory:"
+              ls -lh "$JRE_DIR"
+            fi
+            
+            if [ -f "$JAVA_EXE" ]; then
+              echo "✅ Java executable exists at: $JAVA_EXE"
+              echo "Testing Java execution:"
+              "$JAVA_EXE" -version 2>&1 || echo "⚠️  Java execution failed"
+            else
+              echo "❌ Java executable NOT found at: $JAVA_EXE"
+            fi
+          else
+            echo "❌ JRE directory NOT found: $JRE_DIR"
+            echo "Contents of build-jre:"
+            ls -lh src-tauri/resources/build-jre/ || echo "build-jre directory doesn't exist"
+          fi
+
       - name: Setup AppImage build tools (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
         shell: bash
