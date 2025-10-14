@@ -1,5 +1,6 @@
 import React, { useState, useRef, ChangeEvent, useEffect } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { readFile } from "@tauri-apps/plugin-fs";
 import { FileStatus } from "../types";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -93,7 +94,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
       for (const filePath of pdfPaths) {
         try {
-          const { readFile } = await import("@tauri-apps/plugin-fs");
           const fileContent = await readFile(filePath);
 
           const fileName = filePath.split(/[\\/]/).pop() || "unknown.pdf";
