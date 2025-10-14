@@ -393,6 +393,7 @@ function App() {
         setSavedFilePath(result);
       }
     } catch (error: any) {
+      console.error(error)
       handleDownloadError(error);
     } finally {
       setIsDownloading(false);
