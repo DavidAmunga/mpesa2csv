@@ -969,15 +969,42 @@ jobs:
             fi
           fi
 
+          # Wait for GitHub to process all release assets
+          echo "⏳ Waiting for GitHub to process release assets..."
+          sleep 10
+
+          # List all release assets to verify what's available
+          echo "📦 Available release assets:"
+          gh release view "$TAG" --json assets --jq '.assets[].name'
+
           # Download signature files from the release
           echo "🔐 Downloading signature files..."
           mkdir -p signatures
 
-          # Download each signature file, or use empty string if not found
-          gh release download "$TAG" -p "mpesa2csv_${VERSION}_aarch64.dmg.sig" -D signatures 2>/dev/null || echo "" > signatures/mpesa2csv_${VERSION}_aarch64.dmg.sig
-          gh release download "$TAG" -p "mpesa2csv_${VERSION}_x64.dmg.sig" -D signatures 2>/dev/null || echo "" > signatures/mpesa2csv_${VERSION}_x64.dmg.sig
-          gh release download "$TAG" -p "mpesa2csv_${VERSION}_amd64.AppImage.sig" -D signatures 2>/dev/null || echo "" > signatures/mpesa2csv_${VERSION}_amd64.AppImage.sig
-          gh release download "$TAG" -p "mpesa2csv_${VERSION}_x64-setup.exe.sig" -D signatures 2>/dev/null || echo "" > signatures/mpesa2csv_${VERSION}_x64-setup.exe.sig
+          # Track if we found any signatures
+          SIGNATURES_FOUND=0
+
+          # Download each signature file with better error handling
+          for sig_file in "mpesa2csv_${VERSION}_aarch64.dmg.sig" "mpesa2csv_${VERSION}_x64.dmg.sig" "mpesa2csv_${VERSION}_amd64.AppImage.sig" "mpesa2csv_${VERSION}_x64-setup.exe.sig"; do
+            echo "Attempting to download: $sig_file"
+            if gh release download "$TAG" -p "$sig_file" -D signatures 2>/dev/null; then
+              echo "✅ Downloaded: $sig_file"
+              SIGNATURES_FOUND=$((SIGNATURES_FOUND + 1))
+            else
+              echo "⚠️  Signature not found: $sig_file (this is expected if TAURI_SIGNING_PRIVATE_KEY is not set)"
+              echo "" > "signatures/$sig_file"
+            fi
+          done
+
+          if [ $SIGNATURES_FOUND -eq 0 ]; then
+            echo "⚠️  WARNING: No signature files found!"
+            echo "ℹ️  To enable signatures, configure these repository secrets:"
+            echo "   - TAURI_SIGNING_PRIVATE_KEY"
+            echo "   - TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+            echo "ℹ️  Run: pnpm tauri signer generate -- -w ~/.tauri/myapp.key"
+          else
+            echo "✅ Found $SIGNATURES_FOUND signature file(s)"
+          fi
 
           # Read signature files
           DARWIN_AARCH64_SIG=$(cat signatures/mpesa2csv_${VERSION}_aarch64.dmg.sig 2>/dev/null || echo "")

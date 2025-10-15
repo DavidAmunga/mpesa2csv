@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.7.2
+
+### Patch Changes
+
+- fix: release process update
+
 ## 0.7.1
 
 ### Patch Changes
