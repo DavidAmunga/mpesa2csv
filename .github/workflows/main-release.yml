@@ -934,6 +934,8 @@ jobs:
             src-tauri/target/*/release/bundle/**/*.AppImage
             src-tauri/target/*/release/bundle/**/*.exe
             src-tauri/target/*/release/bundle/**/*.msi
+            src-tauri/target/*/release/bundle/**/*.tar.gz
+            src-tauri/target/*/release/bundle/**/*.zip
             src-tauri/target/*/release/bundle/**/*.sig
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -990,7 +992,8 @@ jobs:
           SIGNATURES_FOUND=0
 
           # Download each signature file with better error handling
-          for sig_file in "mpesa2csv_${VERSION}_aarch64.dmg.sig" "mpesa2csv_${VERSION}_x64.dmg.sig" "mpesa2csv_${VERSION}_amd64.AppImage.sig" "mpesa2csv_${VERSION}_x64-setup.exe.sig"; do
+          # Tauri v2 creates signatures for updater bundles (.tar.gz, .zip), not installers
+          for sig_file in "mpesa2csv.app.tar.gz.sig" "mpesa2csv.AppImage.tar.gz.sig" "mpesa2csv_${VERSION}_x64-setup.nsis.zip.sig"; do
             echo "Attempting to download: $sig_file"
             if gh release download "$TAG" -p "$sig_file" -D signatures 2>/dev/null; then
               echo "✅ Downloaded: $sig_file"
@@ -1012,23 +1015,24 @@ jobs:
           fi
 
           # Read signature files
-          DARWIN_AARCH64_SIG=$(cat signatures/mpesa2csv_${VERSION}_aarch64.dmg.sig 2>/dev/null || echo "")
-          DARWIN_X86_64_SIG=$(cat signatures/mpesa2csv_${VERSION}_x64.dmg.sig 2>/dev/null || echo "")
-          LINUX_X86_64_SIG=$(cat signatures/mpesa2csv_${VERSION}_amd64.AppImage.sig 2>/dev/null || echo "")
-          WINDOWS_X86_64_SIG=$(cat signatures/mpesa2csv_${VERSION}_x64-setup.exe.sig 2>/dev/null || echo "")
+          # Tauri v2 uses updater bundle signatures, not installer signatures
+          DARWIN_SIG=$(cat signatures/mpesa2csv.app.tar.gz.sig 2>/dev/null || echo "")
+          LINUX_X86_64_SIG=$(cat signatures/mpesa2csv.AppImage.tar.gz.sig 2>/dev/null || echo "")
+          WINDOWS_X86_64_SIG=$(cat signatures/mpesa2csv_${VERSION}_x64-setup.nsis.zip.sig 2>/dev/null || echo "")
 
           # Use jq to properly create JSON with escaped strings
+          # URLs point to updater bundles (.tar.gz, .zip), not installers
           jq -n \
             --arg version "$VERSION" \
             --arg notes "$RELEASE_NOTES" \
             --arg pub_date "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")" \
-            --arg darwin_aarch64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_aarch64.dmg" \
-            --arg darwin_aarch64_sig "$DARWIN_AARCH64_SIG" \
-            --arg darwin_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64.dmg" \
-            --arg darwin_x86_64_sig "$DARWIN_X86_64_SIG" \
-            --arg linux_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_amd64.AppImage" \
+            --arg darwin_aarch64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv.app.tar.gz" \
+            --arg darwin_aarch64_sig "$DARWIN_SIG" \
+            --arg darwin_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv.app.tar.gz" \
+            --arg darwin_x86_64_sig "$DARWIN_SIG" \
+            --arg linux_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv.AppImage.tar.gz" \
             --arg linux_x86_64_sig "$LINUX_X86_64_SIG" \
-            --arg windows_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64-setup.exe" \
+            --arg windows_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64-setup.nsis.zip" \
             --arg windows_x86_64_sig "$WINDOWS_X86_64_SIG" \
             '{
               version: $version,
