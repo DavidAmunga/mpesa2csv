@@ -29,7 +29,8 @@ console.log("✅ Updated src-tauri/Cargo.toml");
 const tauriConfPath = join(rootDir, "src-tauri", "tauri.conf.json");
 const tauriConf = JSON.parse(readFileSync(tauriConfPath, "utf8"));
 tauriConf.version = version;
-
+writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2) + "\n");
+console.log("✅ Updated src-tauri/tauri.conf.json");
 
 // Update Android version (tauri.properties)
 const tauriPropertiesPath = join(
