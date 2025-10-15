@@ -1065,7 +1065,7 @@ jobs:
 
           # Also verify the GitHub API endpoint works
           echo "🔍 Verifying GitHub API endpoint..."
-          curl -f "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq '.tag_name, .assets[] | select(.name == "latest.json") | .browser_download_url' || echo "⚠️ GitHub API endpoint not accessible"
+          curl -f "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '.tag_name, (.assets[] | select(.name == "latest.json") | .browser_download_url)' || echo "⚠️ GitHub API endpoint not accessible"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
