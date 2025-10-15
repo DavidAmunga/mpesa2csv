@@ -420,7 +420,8 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag }}
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
