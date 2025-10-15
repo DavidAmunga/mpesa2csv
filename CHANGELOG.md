@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.7.3
+
+### Patch Changes
+
+- e834026: Enable code signing for secure auto-updates
+
 ## 0.7.2
 
 ### Patch Changes
