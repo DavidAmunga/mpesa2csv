@@ -807,6 +807,11 @@ jobs:
         run: |
           echo "🔨 Building Tauri app for ${{ matrix.build_name }}..."
 
+          # Clean previous build artifacts to avoid version conflicts
+          echo "🧹 Cleaning previous build artifacts..."
+          rm -rf dist src-tauri/target/release/bundle
+          echo "✅ Build directory cleaned"
+
           # Configure LD_LIBRARY_PATH for Linux to help linuxdeploy find JRE libraries
           if [[ "${{ matrix.platform }}" == "ubuntu-22.04" ]]; then
             echo "🔧 Configuring LD_LIBRARY_PATH for Linux AppImage bundling..."
