@@ -800,6 +800,44 @@ jobs:
         id: timestamp
         run: echo "build_time=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
 
+      - name: Verify signing configuration
+        shell: bash
+        run: |
+          echo "🔐 Verifying updater signing configuration..."
+
+          # Check if signing keys are available
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "⚠️  WARNING: TAURI_SIGNING_PRIVATE_KEY is not set!"
+            echo "Signature files will NOT be generated."
+          else
+            echo "✅ TAURI_SIGNING_PRIVATE_KEY is set (length: ${#TAURI_SIGNING_PRIVATE_KEY})"
+          fi
+
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
+            echo "⚠️  WARNING: TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not set!"
+          else
+            echo "✅ TAURI_SIGNING_PRIVATE_KEY_PASSWORD is set"
+          fi
+
+          # Verify the key format (should start with "dW50cnVzdGVk" which is base64 for "untrusted")
+          if [[ "$TAURI_SIGNING_PRIVATE_KEY" == dW50cnVzdGVk* ]]; then
+            echo "✅ Private key appears to be in correct format (base64-encoded minisign key)"
+          else
+            echo "⚠️  WARNING: Private key might not be in the correct format"
+            echo "Expected: base64-encoded minisign private key starting with 'dW50cnVzdGVk'"
+          fi
+
+          echo ""
+          echo "📋 Tauri config check:"
+          if grep -q '"createUpdaterArtifacts": true' src-tauri/tauri.conf.json; then
+            echo "✅ createUpdaterArtifacts is enabled in tauri.conf.json"
+          else
+            echo "❌ createUpdaterArtifacts is NOT enabled!"
+          fi
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
       - name: Build Tauri app
         id: tauri-build
         continue-on-error: true
@@ -869,6 +907,47 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_BUNDLE_MACOS_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           CI: true
+
+      - name: Verify signature files
+        if: steps.tauri-build.outputs.build_success == 'true'
+        shell: bash
+        run: |
+          echo "🔍 Checking for generated signature files..."
+          echo ""
+
+          # Find all .sig files in the bundle directory
+          SIG_FILES=$(find src-tauri/target/*/release/bundle -name "*.sig" 2>/dev/null || true)
+
+          if [ -z "$SIG_FILES" ]; then
+            echo "⚠️  WARNING: No signature files (.sig) found!"
+            echo ""
+            echo "This means updater signing did NOT work. Possible causes:"
+            echo "1. TAURI_SIGNING_PRIVATE_KEY secret is not set or is invalid"
+            echo "2. TAURI_SIGNING_PRIVATE_KEY_PASSWORD is incorrect"
+            echo "3. The key format is wrong (must be base64-encoded minisign key)"
+            echo ""
+            echo "To generate a new signing key pair, run:"
+            echo "  pnpm tauri signer generate -w ~/.tauri/mpesa2csv.key"
+            echo ""
+            echo "Then add these secrets to your GitHub repository:"
+            echo "  TAURI_SIGNING_PRIVATE_KEY: (paste the private key content)"
+            echo "  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: (the password you used)"
+            echo ""
+            echo "📂 Bundle directory contents:"
+            find src-tauri/target/*/release/bundle -type f 2>/dev/null | head -20 || echo "No files found"
+          else
+            echo "✅ Signature files found:"
+            echo "$SIG_FILES" | while read -r file; do
+              if [ -f "$file" ]; then
+                SIZE=$(du -h "$file" | cut -f1)
+                echo "  - $file (size: $SIZE)"
+                echo "    Content preview:"
+                head -3 "$file" | sed 's/^/      /'
+              fi
+            done
+            echo ""
+            echo "✅ Updater signing is working correctly!"
+          fi
 
       - name: Create GitHub Release
         if: steps.tauri-build.outputs.build_success == 'true'
