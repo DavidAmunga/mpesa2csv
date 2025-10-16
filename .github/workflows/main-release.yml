@@ -1073,7 +1073,7 @@ jobs:
 
           # Download each signature file with better error handling
           # Tauri v2 creates signatures for updater bundles (.tar.gz, .zip), not installers
-          for sig_file in "mpesa2csv.app.tar.gz.sig" "mpesa2csv.AppImage.tar.gz.sig" "mpesa2csv_${VERSION}_x64-setup.nsis.zip.sig"; do
+          for sig_file in "mpesa2csv.app.tar.gz.sig" "mpesa2csv_${VERSION}_amd64.AppImage.sig" "mpesa2csv_${VERSION}_x64-setup.exe.sig"; do
             echo "Attempting to download: $sig_file"
             if gh release download "$TAG" -p "$sig_file" -D signatures 2>/dev/null; then
               echo "✅ Downloaded: $sig_file"
@@ -1097,8 +1097,8 @@ jobs:
           # Read signature files
           # Tauri v2 uses updater bundle signatures, not installer signatures
           DARWIN_SIG=$(cat signatures/mpesa2csv.app.tar.gz.sig 2>/dev/null || echo "")
-          LINUX_X86_64_SIG=$(cat signatures/mpesa2csv.AppImage.tar.gz.sig 2>/dev/null || echo "")
-          WINDOWS_X86_64_SIG=$(cat signatures/mpesa2csv_${VERSION}_x64-setup.nsis.zip.sig 2>/dev/null || echo "")
+          LINUX_X86_64_SIG=$(cat signatures/mpesa2csv_${VERSION}_amd64.AppImage.sig 2>/dev/null || echo "")
+          WINDOWS_X86_64_SIG=$(cat signatures/mpesa2csv_${VERSION}_x64-setup.exe.sig 2>/dev/null || echo "")
 
           # Use jq to properly create JSON with escaped strings
           # URLs point to updater bundles (.tar.gz, .zip), not installers
@@ -1110,9 +1110,9 @@ jobs:
             --arg darwin_aarch64_sig "$DARWIN_SIG" \
             --arg darwin_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv.app.tar.gz" \
             --arg darwin_x86_64_sig "$DARWIN_SIG" \
-            --arg linux_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv.AppImage.tar.gz" \
+            --arg linux_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_amd64.AppImage" \
             --arg linux_x86_64_sig "$LINUX_X86_64_SIG" \
-            --arg windows_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64-setup.nsis.zip" \
+            --arg windows_x86_64_url "https://github.com/${{ github.repository }}/releases/download/$TAG/mpesa2csv_${VERSION}_x64-setup.exe" \
             --arg windows_x86_64_sig "$WINDOWS_X86_64_SIG" \
             '{
               version: $version,
