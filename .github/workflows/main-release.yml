@@ -60,14 +60,8 @@ jobs:
       - name: Check release conditions
         id: check
         run: |
-          # Check if this is a changeset release commit
           COMMIT_MSG=$(git log -1 --pretty=format:"%s")
-          echo "Latest commit: $COMMIT_MSG"
-
-          # Check recent commits for changeset patterns (look deeper for merge commits)
           RECENT_COMMITS=$(git log -10 --pretty=format:"%s")
-          echo "Recent commits:"
-          echo "$RECENT_COMMITS"
 
           IS_CHANGESET_RELEASE="false"
           if [[ "$COMMIT_MSG" == *"chore: release version packages"* ]] || \
@@ -78,41 +72,27 @@ jobs:
              [[ "$RECENT_COMMITS" == *"Version Packages"* ]] || \
              [[ "$RECENT_COMMITS" == *"chore: sync version files"* ]]; then
             IS_CHANGESET_RELEASE="true"
-            echo "✅ This is a changeset release commit"
           fi
 
-          # Check for pending changesets with better detection
           HAS_CHANGESETS="false"
           CHANGESET_COUNT=0
           if [ -d ".changeset" ]; then
-            # Count actual changeset files (excluding README.md and config.json)
             CHANGESET_COUNT=$(find .changeset -name "*.md" -not -name "README.md" -not -name "config.json" 2>/dev/null | wc -l)
             if [ "$CHANGESET_COUNT" -gt 0 ]; then
               HAS_CHANGESETS="true"
-              echo "✅ Found $CHANGESET_COUNT pending changesets"
-              # List the changeset files for debugging
-              echo "Changeset files:"
-              find .changeset -name "*.md" -not -name "README.md" -not -name "config.json" 2>/dev/null | head -5
             fi
           fi
 
-          # Enhanced version change detection
           VERSION_CHANGED="false"
-          VERSION_FILES_CHANGED=""
           if git diff HEAD~1 HEAD --name-only | grep -q "package.json\|src-tauri/Cargo.toml\|src-tauri/tauri.conf.json"; then
-            VERSION_FILES_CHANGED=$(git diff HEAD~1 HEAD --name-only | grep -E "package.json|src-tauri/Cargo.toml|src-tauri/tauri.conf.json" | tr '\n' ' ')
-            echo "📦 Version files changed in recent commit: $VERSION_FILES_CHANGED"
             VERSION_CHANGED="true"
           fi
 
-          # Check for manual version bumps in commit messages
           MANUAL_VERSION_BUMP="false"
           if [[ "$COMMIT_MSG" == *"bump version"* ]] || [[ "$COMMIT_MSG" == *"version"* ]] && [[ "$COMMIT_MSG" == *"v"* ]]; then
             MANUAL_VERSION_BUMP="true"
-            echo "📦 Manual version bump detected in commit message"
           fi
 
-          # Determine if we should release with improved logic
           SHOULD_RELEASE="false"
           RELEASE_REASON=""
 
@@ -135,20 +115,9 @@ jobs:
 
           if [[ "$SHOULD_RELEASE" == "true" ]]; then
             echo "✅ Release conditions met: $RELEASE_REASON"
-          else
-            echo "ℹ️ No release needed"
-            echo "  - Changeset release: $IS_CHANGESET_RELEASE"
-            echo "  - Version changed: $VERSION_CHANGED"
-            echo "  - Has changesets: $HAS_CHANGESETS"
-            echo "  - Manual bump: $MANUAL_VERSION_BUMP"
-            echo "  - Force release: ${{ github.event.inputs.force_release }}"
           fi
 
-          # Get current version with validation
           VERSION=$(node -p "require('./package.json').version")
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "⚠️ Warning: Version format may be invalid: $VERSION"
-          fi
 
           echo "should_release=$SHOULD_RELEASE" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -181,90 +150,57 @@ jobs:
       - name: Install system dependencies for validation
         if: runner.os == 'Linux'
         run: |
-          echo "📦 Installing system dependencies for validation..."
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libglib2.0-dev curl wget unzip
-          echo "✅ System dependencies installed"
 
       - name: Run comprehensive validation
         id: validate
         run: |
-          echo "🔍 Running pre-release validation..."
           VALIDATION_PASSED="true"
           VALIDATION_ERRORS=""
 
-          # 1. Check for security vulnerabilities
-          echo "🔒 Checking for security vulnerabilities..."
           if ! pnpm audit --audit-level moderate; then
             VALIDATION_ERRORS="${VALIDATION_ERRORS}Security vulnerabilities found. "
             VALIDATION_PASSED="false"
           fi
 
-          # 2. Validate package.json version format
-          echo "📦 Validating version format..."
           VERSION=$(node -p "require('./package.json').version")
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             VALIDATION_ERRORS="${VALIDATION_ERRORS}Invalid version format: $VERSION. "
             VALIDATION_PASSED="false"
           fi
 
-          # 3. Check for uncommitted changes
-          echo "📝 Checking for uncommitted changes..."
           if ! git diff --quiet; then
             VALIDATION_ERRORS="${VALIDATION_ERRORS}Uncommitted changes detected. "
             VALIDATION_PASSED="false"
           fi
 
-          # 4. Validate Tauri configuration
-          echo "⚙️ Validating Tauri configuration..."
           if ! node -e "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8'))"; then
             VALIDATION_ERRORS="${VALIDATION_ERRORS}Invalid tauri.conf.json. "
             VALIDATION_PASSED="false"
           fi
 
-          # 5. Check for breaking changes in changesets
-          echo "⚠️ Checking for breaking changes..."
-          if [ -d ".changeset" ]; then
-            BREAKING_CHANGES=$(find .changeset -name "*.md" -not -name "README.md" -not -name "config.json" -exec grep -l "BREAKING CHANGE\|!" {} \; 2>/dev/null | wc -l)
-            if [ "$BREAKING_CHANGES" -gt 0 ]; then
-              echo "⚠️ Found $BREAKING_CHANGES changesets with breaking changes"
-            fi
-          fi
-
-          # 6. Validate build prerequisites (frontend only for validation)
-          echo "🔨 Validating frontend build prerequisites..."
           if ! pnpm run build; then
             VALIDATION_ERRORS="${VALIDATION_ERRORS}Frontend build failed. "
             VALIDATION_PASSED="false"
           fi
 
-          # 7. Setup JRE for Tabula (required for Rust build)
-          echo "🔧 Setting up JRE for Tabula..."
           if ! bash src-tauri/scripts/setup-build-jre.sh; then
             VALIDATION_ERRORS="${VALIDATION_ERRORS}JRE setup failed. "
             VALIDATION_PASSED="false"
-          else
-            echo "✅ JRE setup completed"
           fi
 
-          # 8. Check Rust/Cargo configuration
-          echo "🦀 Validating Rust configuration..."
           cd src-tauri
-
-          # Validate Cargo configuration with system dependencies
           if ! cargo check --quiet; then
             VALIDATION_ERRORS="${VALIDATION_ERRORS}Cargo check failed. "
             VALIDATION_PASSED="false"
-          else
-            echo "✅ Cargo configuration is valid"
           fi
           cd ..
 
           if [[ "$VALIDATION_PASSED" == "true" ]]; then
-            echo "✅ All pre-release validations passed"
+            echo "✅ Validation passed"
           else
             echo "❌ Validation failed: $VALIDATION_ERRORS"
-            echo "Please fix the issues above before proceeding with the release."
           fi
 
           echo "passed=$VALIDATION_PASSED" >> $GITHUB_OUTPUT
@@ -333,19 +269,14 @@ jobs:
 
       - name: Sync versions
         run: |
-          echo "📦 Syncing all version files..."
           pnpm run sync-versions
 
-          # Check if there are any changes to commit
           if ! git diff --quiet; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add .
             git commit -m "chore: sync version files"
             git push
-            echo "✅ Version files synced and committed"
-          else
-            echo "ℹ️ No version sync changes needed"
           fi
 
       - name: Get version and create tag
@@ -357,36 +288,23 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-          # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Clean up any existing draft releases for this tag
-          echo "🧹 Checking for existing draft releases with tag $TAG..."
+          # Clean up any existing draft releases
           RELEASE_ID=$(gh release view "$TAG" --json id,isDraft --jq 'select(.isDraft == true) | .id' 2>/dev/null || echo "")
-
           if [ -n "$RELEASE_ID" ]; then
-            echo "🗑️  Deleting existing draft release for $TAG..."
-            gh release delete "$TAG" --yes || echo "⚠️  Failed to delete, continuing..."
-            echo "✅ Cleaned up existing draft release"
-          else
-            echo "✅ No existing draft release found"
+            gh release delete "$TAG" --yes 2>/dev/null || true
           fi
 
-          # Check if tag exists locally
+          # Create tag if needed
           if ! git tag -l "$TAG" | grep -q "$TAG"; then
-            # Check if tag exists remotely
             if git ls-remote --tags origin | grep -q "refs/tags/$TAG$"; then
-              echo "ℹ️ Tag $TAG already exists remotely, fetching it"
               git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
             else
-              echo "🏷️ Creating new tag: $TAG"
               git tag -a "$TAG" -m "Release $TAG"
               git push origin "$TAG"
-              echo "✅ Created and pushed tag: $TAG"
             fi
-          else
-            echo "ℹ️ Tag $TAG already exists locally"
           fi
 
   # Step 5: Build and release desktop
@@ -733,15 +651,6 @@ jobs:
               found { print }
             ' CHANGELOG.md | sed '/^$/d' | head -30)
             
-            # Debug output
-            echo "Debug: VERSION=$VERSION"
-            echo "Debug: CHANGELOG_CONTENT length: $(echo "$CHANGELOG_CONTENT" | wc -c | tr -d ' ')"
-            if [ -n "$CHANGELOG_CONTENT" ]; then
-              echo "Debug: Found changelog content for version $VERSION"
-            else
-              echo "Debug: No changelog content found for version $VERSION"
-            fi
-            
             # Get previous version for comparison link
             PREVIOUS_VERSION=$(awk '/^## / && !/'"$VERSION"'/ { print $2; exit }' CHANGELOG.md)
             
@@ -800,44 +709,6 @@ jobs:
         id: timestamp
         run: echo "build_time=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
 
-      - name: Verify signing configuration
-        shell: bash
-        run: |
-          echo "🔐 Verifying updater signing configuration..."
-
-          # Check if signing keys are available
-          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "⚠️  WARNING: TAURI_SIGNING_PRIVATE_KEY is not set!"
-            echo "Signature files will NOT be generated."
-          else
-            echo "✅ TAURI_SIGNING_PRIVATE_KEY is set (length: ${#TAURI_SIGNING_PRIVATE_KEY})"
-          fi
-
-          if [ -z "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
-            echo "⚠️  WARNING: TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not set!"
-          else
-            echo "✅ TAURI_SIGNING_PRIVATE_KEY_PASSWORD is set"
-          fi
-
-          # Verify the key format (should start with "dW50cnVzdGVk" which is base64 for "untrusted")
-          if [[ "$TAURI_SIGNING_PRIVATE_KEY" == dW50cnVzdGVk* ]]; then
-            echo "✅ Private key appears to be in correct format (base64-encoded minisign key)"
-          else
-            echo "⚠️  WARNING: Private key might not be in the correct format"
-            echo "Expected: base64-encoded minisign private key starting with 'dW50cnVzdGVk'"
-          fi
-
-          echo ""
-          echo "📋 Tauri config check:"
-          if grep -q '"createUpdaterArtifacts": true' src-tauri/tauri.conf.json; then
-            echo "✅ createUpdaterArtifacts is enabled in tauri.conf.json"
-          else
-            echo "❌ createUpdaterArtifacts is NOT enabled!"
-          fi
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
       - name: Build Tauri app
         id: tauri-build
         continue-on-error: true
@@ -852,22 +723,14 @@ jobs:
 
           # Configure LD_LIBRARY_PATH for Linux to help linuxdeploy find JRE libraries
           if [[ "${{ matrix.platform }}" == "ubuntu-22.04" ]]; then
-            echo "🔧 Configuring LD_LIBRARY_PATH for Linux AppImage bundling..."
-            # Find all JRE lib directories that might contain libjvm.so
             JRE_DIRS=$(find src-tauri/resources/build-jre -type d -name "lib" 2>/dev/null || echo "")
             if [ -n "$JRE_DIRS" ]; then
               for JRE_LIB in $JRE_DIRS; do
-                # Add both lib/ and lib/server/ directories to LD_LIBRARY_PATH
                 if [ -d "$JRE_LIB/server" ]; then
                   export LD_LIBRARY_PATH="$PWD/$JRE_LIB/server:${LD_LIBRARY_PATH}"
-                  echo "  Added to LD_LIBRARY_PATH: $PWD/$JRE_LIB/server"
                 fi
                 export LD_LIBRARY_PATH="$PWD/$JRE_LIB:${LD_LIBRARY_PATH}"
-                echo "  Added to LD_LIBRARY_PATH: $PWD/$JRE_LIB"
               done
-              echo "✅ LD_LIBRARY_PATH configured: $LD_LIBRARY_PATH"
-            else
-              echo "⚠️  Warning: No JRE lib directories found"
             fi
           fi
 
@@ -907,47 +770,6 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_BUNDLE_MACOS_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           CI: true
-
-      - name: Verify signature files
-        if: steps.tauri-build.outputs.build_success == 'true'
-        shell: bash
-        run: |
-          echo "🔍 Checking for generated signature files..."
-          echo ""
-
-          # Find all .sig files in the bundle directory
-          SIG_FILES=$(find src-tauri/target/*/release/bundle -name "*.sig" 2>/dev/null || true)
-
-          if [ -z "$SIG_FILES" ]; then
-            echo "⚠️  WARNING: No signature files (.sig) found!"
-            echo ""
-            echo "This means updater signing did NOT work. Possible causes:"
-            echo "1. TAURI_SIGNING_PRIVATE_KEY secret is not set or is invalid"
-            echo "2. TAURI_SIGNING_PRIVATE_KEY_PASSWORD is incorrect"
-            echo "3. The key format is wrong (must be base64-encoded minisign key)"
-            echo ""
-            echo "To generate a new signing key pair, run:"
-            echo "  pnpm tauri signer generate -w ~/.tauri/mpesa2csv.key"
-            echo ""
-            echo "Then add these secrets to your GitHub repository:"
-            echo "  TAURI_SIGNING_PRIVATE_KEY: (paste the private key content)"
-            echo "  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: (the password you used)"
-            echo ""
-            echo "📂 Bundle directory contents:"
-            find src-tauri/target/*/release/bundle -type f 2>/dev/null | head -20 || echo "No files found"
-          else
-            echo "✅ Signature files found:"
-            echo "$SIG_FILES" | while read -r file; do
-              if [ -f "$file" ]; then
-                SIZE=$(du -h "$file" | cut -f1)
-                echo "  - $file (size: $SIZE)"
-                echo "    Content preview:"
-                head -3 "$file" | sed 's/^/      /'
-              fi
-            done
-            echo ""
-            echo "✅ Updater signing is working correctly!"
-          fi
 
       - name: Create GitHub Release
         if: steps.tauri-build.outputs.build_success == 'true'
@@ -1056,43 +878,14 @@ jobs:
             fi
           fi
 
-          # Wait for GitHub to process all release assets
-          echo "⏳ Waiting for GitHub to process release assets..."
+          # Wait for GitHub to process release assets
           sleep 10
 
-          # List all release assets to verify what's available
-          echo "📦 Available release assets:"
-          gh release view "$TAG" --json assets --jq '.assets[].name'
-
           # Download signature files from the release
-          echo "🔐 Downloading signature files..."
           mkdir -p signatures
-
-          # Track if we found any signatures
-          SIGNATURES_FOUND=0
-
-          # Download each signature file with better error handling
-          # Tauri v2 creates signatures for updater bundles (.tar.gz, .zip), not installers
           for sig_file in "mpesa2csv.app.tar.gz.sig" "mpesa2csv_${VERSION}_amd64.AppImage.sig" "mpesa2csv_${VERSION}_x64-setup.exe.sig"; do
-            echo "Attempting to download: $sig_file"
-            if gh release download "$TAG" -p "$sig_file" -D signatures 2>/dev/null; then
-              echo "✅ Downloaded: $sig_file"
-              SIGNATURES_FOUND=$((SIGNATURES_FOUND + 1))
-            else
-              echo "⚠️  Signature not found: $sig_file (this is expected if TAURI_SIGNING_PRIVATE_KEY is not set)"
-              echo "" > "signatures/$sig_file"
-            fi
+            gh release download "$TAG" -p "$sig_file" -D signatures 2>/dev/null || echo "" > "signatures/$sig_file"
           done
-
-          if [ $SIGNATURES_FOUND -eq 0 ]; then
-            echo "⚠️  WARNING: No signature files found!"
-            echo "ℹ️  To enable signatures, configure these repository secrets:"
-            echo "   - TAURI_SIGNING_PRIVATE_KEY"
-            echo "   - TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
-            echo "ℹ️  Run: pnpm tauri signer generate -- -w ~/.tauri/myapp.key"
-          else
-            echo "✅ Found $SIGNATURES_FOUND signature file(s)"
-          fi
 
           # Read signature files
           # Tauri v2 uses updater bundle signatures, not installer signatures
@@ -1138,22 +931,9 @@ jobs:
               }
             }' > latest.json
 
-          echo "📄 Generated latest.json:"
-          cat latest.json
-
           # Upload to the release
-          echo "📤 Uploading latest.json to release $TAG..."
           gh release upload "$TAG" latest.json --clobber
-          echo "✅ latest.json uploaded successfully"
-
-          # Verify the file is accessible
-          echo "🔍 Verifying latest.json is accessible..."
-          sleep 5  # Give GitHub a moment to process
-          curl -f "https://github.com/${{ github.repository }}/releases/download/$TAG/latest.json" || echo "⚠️ latest.json not yet accessible"
-
-          # Also verify the GitHub API endpoint works
-          echo "🔍 Verifying GitHub API endpoint..."
-          curl -f "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '.tag_name, (.assets[] | select(.name == "latest.json") | .browser_download_url)' || echo "⚠️ GitHub API endpoint not accessible"
+          echo "✅ latest.json uploaded"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

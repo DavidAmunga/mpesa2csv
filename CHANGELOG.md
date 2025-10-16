@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.7.4
+
+### Patch Changes
+
+- fix: improve release process updates
+
 ## 0.7.3
 
 ### Patch Changes
