@@ -423,10 +423,10 @@ function App() {
   }, [exportLink]);
 
   return (
-    <div className="min-h-screen max-h-screen  flex flex-col overflow-hidden">
+    <div className="min-h-screen flex flex-col">
       <UpdateChecker autoCheck={true} />
-      <div className="flex-1 mx-auto px-4 py-4 flex flex-col max-w-4xl w-full">
-        <main className="flex-1 flex items-center justify-center">
+      <div className="flex-1 mx-auto px-4 py-4 flex flex-col max-w-4xl w-full overflow-y-auto">
+        <main className="flex-1 flex items-center justify-center py-4">
           <div className="w-full max-w-2xl transition-all duration-300 ease-in-out">
             {status === FileStatus.IDLE ||
             status === FileStatus.LOADING ||
@@ -493,7 +493,7 @@ function App() {
                 )}
               </div>
             ) : status === FileStatus.SUCCESS && statements.length > 0 ? (
-              <div className="rounded-lg px-6 py-6 transition-all duration-300 ">
+              <div className="rounded-lg px-6 py-6 transition-all duration-300 max-h-full overflow-y-auto">
                 <div className="text-center mb-5">
                   <h2 className="text-xl font-semibold text-primary mb-2">
                     ✅ Your Data is Ready!
@@ -575,7 +575,7 @@ function App() {
           </div>
         </main>
 
-        <footer className="flex-shrink-0 text-center text-xs border-t py-3 mt-0">
+        <footer className="flex-shrink-0 text-center text-xs border-t py-3 mt-4 sticky bottom-0 ">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
             <p>
               Built by{" "}

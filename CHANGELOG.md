@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.7.5
+
+### Patch Changes
+
+- fix: improve sheets stacking
+
 ## 0.7.4
 
 ### Patch Changes

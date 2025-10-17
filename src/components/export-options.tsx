@@ -214,29 +214,52 @@ export default function ExportOptions({
 
       {exportFormat === ExportFormat.XLSX && (
         <div>
-          <Label className="block text-sm font-medium mb-3">
-            Additional Sheets
-          </Label>
-          <div className="grid grid-cols-1 gap-3">
+          <div className="flex items-center justify-between mb-3">
+            <Label className="text-sm font-medium">Additional Sheets</Label>
+            <button
+              type="button"
+              onClick={() => {
+                const allSelected = SHEET_OPTIONS.every(
+                  (opt) => exportOptions[opt.key]
+                );
+                const newOptions: ExportOptionsType = { ...exportOptions };
+                SHEET_OPTIONS.forEach((opt) => {
+                  (newOptions as any)[opt.key] = !allSelected;
+                });
+                onOptionsChange(newOptions);
+              }}
+              className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+            >
+              {SHEET_OPTIONS.every((opt) => exportOptions[opt.key])
+                ? "Deselect All"
+                : "Select All"}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {SHEET_OPTIONS.map((option) => (
-              <div key={option.key} className="flex items-center space-x-2">
+              <div
+                key={option.key}
+                className="flex items-start space-x-2 p-2.5 rounded-lg border border-border/50 hover:border-border hover:bg-muted/30 transition-colors"
+              >
                 <Checkbox
                   id={`sheet-${option.key}`}
                   checked={Boolean(exportOptions[option.key]) || false}
                   onCheckedChange={(value) =>
                     handleOptionChange(option.key, Boolean(value))
                   }
-                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                  className="rounded border-gray-300 text-primary focus:ring-primary mt-0.5"
                 />
-                <Label
-                  htmlFor={`sheet-${option.key}`}
-                  className="flex-1 text-sm cursor-pointer"
-                >
-                  {option.name}
-                </Label>
+                <div className="flex-1 min-w-0">
+                  <Label
+                    htmlFor={`sheet-${option.key}`}
+                    className="text-sm cursor-pointer font-medium block leading-tight"
+                  >
+                    {option.name}
+                  </Label>
+                </div>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                    <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help flex-shrink-0 mt-0.5" />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
                     <p>{option.description}</p>
