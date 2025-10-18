@@ -229,6 +229,10 @@ async fn save_file(
     let (title, filter_name, extensions) = match _file_type.as_str() {
         "csv" => ("Save CSV File", "CSV Files", vec!["csv"]),
         "xlsx" => ("Save Excel File", "Excel Files", vec!["xlsx"]),
+        "json" => ("Save JSON File", "JSON Files", vec!["json"]),
+        "ofx" => ("Save OFX File", "OFX Files", vec!["ofx"]),
+        "qfx" => ("Save QFX File", "QFX Files", vec!["qfx"]),
+        "qif" => ("Save QIF File", "QIF Files", vec!["qif"]),
         _ => return Err("Unsupported file type".to_string()),
     };
 
