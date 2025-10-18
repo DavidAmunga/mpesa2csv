@@ -1,5 +1,16 @@
 # mpesa2csv
 
+## 0.8.0
+
+### Minor Changes
+
+- 619f6e7: feat: added extra export formats
+
+  - JSON Export - Exports transactions in JSON format
+  - OFX Export - Exports transactions in OFX (Open Financial Exchange) format (Experimental)
+  - QFX Export - Exports transactions in QFX (Quicken Financial) format (Experimental)
+  - QIF Export - Exports transactions in QIF (Quicken Interchange) format (Experimental)
+
 ## 0.7.5
 
 ### Patch Changes
