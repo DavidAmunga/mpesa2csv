@@ -422,32 +422,10 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            src-tauri/target
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-cargo-
             ${{ runner.os }}-cargo-
-
-      - name: Cache Node dependencies
-        if: matrix.platform != 'windows-latest'
-        uses: actions/cache@v4
-        with:
-          path: |
-            node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Cache Build artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            dist
-            src-tauri/target/release
-          key: ${{ runner.os }}-${{ matrix.build_name }}-build-${{ hashFiles('**/package.json', '**/Cargo.toml', '**/src/**') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.build_name }}-build-
-
       - name: Cache JRE for Tabula
         uses: actions/cache@v4
         with:
