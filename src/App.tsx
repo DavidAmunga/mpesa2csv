@@ -354,10 +354,30 @@ function App() {
           exportOptions
         );
 
-        const mimeType =
-          exportFormat === ExportFormat.CSV
-            ? "text/csv"
-            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        let mimeType: string;
+        switch (exportFormat) {
+          case ExportFormat.CSV:
+            mimeType = "text/csv";
+            break;
+          case ExportFormat.JSON:
+            mimeType = "application/json";
+            break;
+          case ExportFormat.XLSX:
+            mimeType =
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            break;
+          case ExportFormat.OFX:
+            mimeType = "application/x-ofx";
+            break;
+          case ExportFormat.QFX:
+            mimeType = "application/x-qfx";
+            break;
+          case ExportFormat.QIF:
+            mimeType = "application/x-qif";
+            break;
+          default:
+            mimeType = "application/octet-stream";
+        }
 
         const dataArray = Array.from(new Uint8Array(arrayBuffer));
 

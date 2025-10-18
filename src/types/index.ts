@@ -28,6 +28,10 @@ export enum FileStatus {
 export enum ExportFormat {
   CSV = "csv",
   XLSX = "xlsx",
+  JSON = "json",
+  OFX = "ofx",
+  QFX = "qfx",
+  QIF = "qif",
 }
 
 export enum SortOrder {
