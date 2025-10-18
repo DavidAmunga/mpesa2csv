@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { platform } from "@tauri-apps/plugin-os";
-import { Download, RotateCcw, ExternalLink } from "lucide-react";
+import { Download, RotateCcw, ExternalLink, MessageSquare } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 import {
   MPesaStatement,
@@ -414,6 +415,17 @@ function App() {
     }
   };
 
+  const handleOpenFeedback = async () => {
+    try {
+      await openUrl("https://mpesa2csv.com/feedback");
+    } catch (error: any) {
+      console.error(
+        "Failed to open feedback page:",
+        error.message || error.toString()
+      );
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (exportLink) {
@@ -493,7 +505,7 @@ function App() {
                 )}
               </div>
             ) : status === FileStatus.SUCCESS && statements.length > 0 ? (
-              <div className="rounded-lg px-6 py-6 transition-all duration-300 max-h-full overflow-y-auto">
+              <div className="rounded-lg px-6  transition-all duration-300 max-h-full overflow-y-auto">
                 <div className="text-center mb-5">
                   <h2 className="text-xl font-semibold text-primary mb-2">
                     ✅ Your Data is Ready!
@@ -560,7 +572,7 @@ function App() {
                   </Button>
                 </div>
 
-                <div className="pt-3 border-t border-border">
+                <div className="pt-3 border-t border-border space-y-3">
                   <p className="text-xs text-center truncate">
                     File: {exportFileName}
                   </p>
@@ -569,6 +581,17 @@ function App() {
                       Saved to: {savedFilePath}
                     </p>
                   )}
+
+                  {/* Feedback Link */}
+                  <div className="flex items-center justify-center gap-2 pt-2">
+                    <button
+                      onClick={handleOpenFeedback}
+                      className="inline-flex items-center gap-1.5 text-xs cursor-pointer hover:text-primary transition-colors"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Share feedback or report an issue
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : null}
