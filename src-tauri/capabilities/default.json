@@ -7,6 +7,7 @@
     "core:default",
     "os:default",
     "opener:default",
+    "dialog:default",
     "core:webview:allow-webview-position",
     "core:webview:allow-webview-size",
     "fs:allow-read-file",
