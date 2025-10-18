@@ -1,6 +1,5 @@
 import { MPesaStatement, ExportOptions } from "../types";
 import { applyTransactionFilters } from "./transactionFilters";
-import { formatDate } from "../utils/dateFormatter";
 
 export class OfxService {
   /**
@@ -15,28 +14,10 @@ export class OfxService {
     const now = new Date();
     const dtserver = this.formatOfxDate(now);
 
-    // Calculate totals
-    let totalDeposits = 0;
-    let totalWithdrawals = 0;
-
-    filteredStatement.transactions.forEach((transaction) => {
-      if (transaction.paidIn !== null) {
-        totalDeposits += transaction.paidIn;
-      }
-      if (transaction.withdrawn !== null) {
-        totalWithdrawals += transaction.withdrawn;
-      }
-    });
-
     // Get first and last transaction dates
     const firstTransaction = filteredStatement.transactions[0];
     const lastTransaction =
       filteredStatement.transactions[filteredStatement.transactions.length - 1];
-    const startBalance = firstTransaction
-      ? firstTransaction.balance -
-        (firstTransaction.paidIn || 0) +
-        (firstTransaction.withdrawn || 0)
-      : 0;
     const endBalance = lastTransaction ? lastTransaction.balance : 0;
 
     const ofxHeader = `OFXHEADER:100
@@ -81,7 +62,7 @@ NEWFILEUID:NONE
       new Date(firstTransaction?.completionTime || now)
     )}
 <DTEND>${this.formatOfxDate(new Date(lastTransaction?.completionTime || now))}
-${this.generateTransactions(filteredStatement, options)}
+${this.generateTransactions(filteredStatement)}
 </BANKTRANLIST>
 <LEDGERBAL>
 <BALAMT>${endBalance.toFixed(2)}
@@ -97,7 +78,7 @@ ${this.generateTransactions(filteredStatement, options)}
 
   private static generateTransactions(
     statement: MPesaStatement,
-    options?: ExportOptions
+    _options?: ExportOptions
   ): string {
     return statement.transactions
       .map((transaction, index) => {
