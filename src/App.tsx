@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { platform } from "@tauri-apps/plugin-os";
-import { Download, RotateCcw, ExternalLink } from "lucide-react";
+import { Download, RotateCcw, ExternalLink, History } from "lucide-react";
 
 import {
   MPesaStatement,
@@ -19,6 +19,8 @@ import { Button } from "./components/ui/button";
 import { formatDateForFilename } from "./utils/helpers";
 import { calculateQuickFileHash } from "./utils/fileHash";
 import { usePasswordCacheStore } from "./stores/passwordCacheStore";
+import { useRecentFilesStore } from "./stores/recentFilesStore";
+import RecentFilesHistory from "./components/recent-files-history";
 
 function App() {
   const [files, setFiles] = useState<File[]>([]);
@@ -44,8 +46,10 @@ function App() {
   const [savedFilePath, setSavedFilePath] = useState<string>("");
   const [currentPlatform, setCurrentPlatform] = useState<string>("");
   const [cachedPassword, setCachedPassword] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
   
   const { getPassword, savePassword } = usePasswordCacheStore();
+  const { addFile: addRecentFile } = useRecentFilesStore();
 
   const getDefaultFileName = () => {
     return (
@@ -104,6 +108,9 @@ function App() {
   }, []);
 
   const handleFilesSelected = async (selectedFiles: File[]) => {
+    console.log('[App] ===== FILE UPLOAD STARTED =====');
+    console.log('[App] Selected files:', selectedFiles.map(f => f.name));
+    
     setFiles(selectedFiles);
     setStatus(FileStatus.LOADING);
     setError(undefined);
@@ -232,6 +239,10 @@ function App() {
         .catch(() => setExportLink(""));
       setExportFileName(fileName);
       setStatus(FileStatus.SUCCESS);
+      
+      // Save to recent files history
+      console.log('[App] Normal flow complete - saving to history');
+      saveToRecentFiles(filesToProcess, combinedStatement, hashMap || fileHashes);
     }
 
     return {
@@ -316,6 +327,10 @@ function App() {
           .catch(() => setExportLink(""));
         setExportFileName(fileName);
         setStatus(FileStatus.SUCCESS);
+        
+        // Save to recent files history after password submission
+        console.log('[App] Password flow complete - saving to history');
+        saveToRecentFiles(files, combinedStatement, fileHashes);
       }
     } catch (err: any) {
       setStatus(FileStatus.PROTECTED);
@@ -354,12 +369,80 @@ function App() {
           .catch(() => setExportLink(""));
         setExportFileName(fileName);
         setStatus(FileStatus.SUCCESS);
+        
+        // Save to recent files history after skip
+        console.log('[App] Skip flow complete - saving to history');
+        saveToRecentFiles(files, combinedStatement, fileHashes);
       } else {
         setStatus(FileStatus.IDLE);
         setFiles([]);
         setCurrentFileIndex(0);
       }
     }
+  };
+
+  const saveToRecentFiles = (
+    processedFiles: File[],
+    statement: MPesaStatement,
+    hashMap: Map<number, string>
+  ) => {
+    console.log('[RecentFiles] saveToRecentFiles called');
+    console.log('[RecentFiles] Processing', processedFiles.length, 'files');
+    console.log('[RecentFiles] Statement has', statement.transactions.length, 'transactions');
+    console.log('[RecentFiles] HashMap size:', hashMap.size);
+    
+    processedFiles.forEach((file, index) => {
+      const fileHash = hashMap.get(index);
+      console.log(`[RecentFiles] File ${index}:`, file.name, 'Hash:', fileHash ? fileHash.substring(0, 16) + '...' : 'NO HASH');
+      
+      if (!fileHash) {
+        console.error('[RecentFiles] ❌ Skipping file - no hash found for index:', index);
+        return;
+      }
+
+      // Calculate date range from transactions
+      const transactions = statement.transactions;
+      let dateRange = undefined;
+      if (transactions.length > 0) {
+        const dates = transactions.map(t => new Date(t.completionTime));
+        const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+        const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+        dateRange = {
+          from: minDate.toLocaleDateString(),
+          to: maxDate.toLocaleDateString(),
+        };
+        console.log('[RecentFiles] Date range:', dateRange);
+      }
+
+      // Calculate totals
+      const totalPaidIn = transactions.reduce((sum, t) => sum + (t.paidIn || 0), 0);
+      const totalWithdrawn = transactions.reduce((sum, t) => sum + (t.withdrawn || 0), 0);
+      const finalBalance = transactions.length > 0 
+        ? transactions[transactions.length - 1].balance 
+        : 0;
+      
+      console.log('[RecentFiles] Totals - Paid In:', totalPaidIn, 'Withdrawn:', totalWithdrawn, 'Balance:', finalBalance);
+
+      const recentFileEntry = {
+        id: `${fileHash}-${Date.now()}`,
+        fileName: file.name,
+        fileSize: file.size,
+        fileHash,
+        processedDate: Date.now(),
+        transactionCount: transactions.length,
+        isPasswordProtected: !!getPassword(fileHash),
+        dateRange,
+        totalPaidIn,
+        totalWithdrawn,
+        finalBalance,
+      };
+      
+      console.log('[RecentFiles] Adding entry:', recentFileEntry);
+      addRecentFile(recentFileEntry);
+      console.log('[RecentFiles] ✅ Entry added successfully');
+    });
+    
+    console.log('[RecentFiles] saveToRecentFiles completed');
   };
 
   const handleReset = () => {
@@ -373,6 +456,7 @@ function App() {
     setDownloadSuccess(false);
     setSavedFilePath("");
     setCachedPassword(null);
+    setShowHistory(false);
 
     if (exportLink) {
       URL.revokeObjectURL(exportLink);
@@ -486,6 +570,23 @@ function App() {
   return (
     <div className="min-h-screen max-h-screen  flex flex-col overflow-hidden">
       <UpdateChecker autoCheck={true} />
+      
+      {/* History Modal Overlay */}
+      {showHistory && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowHistory(false);
+            }
+          }}
+        >
+          <div className="rounded-lg shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden border">
+            <RecentFilesHistory onClose={() => setShowHistory(false)} />
+          </div>
+        </div>
+      )}
+      
       <div className="flex-1 mx-auto px-4 py-4 flex flex-col max-w-4xl w-full">
         <main className="flex-1 flex items-center justify-center">
           <div className="w-full max-w-2xl transition-all duration-300 ease-in-out">
@@ -614,17 +715,28 @@ function App() {
 
         <footer className="flex-shrink-0 text-center text-xs border-t py-3 mt-0">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p>
-              Built by{" "}
-              <a
-                href="https://twitter.com/davidamunga_"
-                className="text-green-500 hover:text-green-500/80 font-medium transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
+            <div className="flex items-center gap-3">
+              <p>
+                Built by{" "}
+                <a
+                  href="https://twitter.com/davidamunga_"
+                  className="text-green-500 hover:text-green-500/80 font-medium transition-colors"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  @davidamunga
+                </a>
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowHistory(true)}
+                className="flex items-center gap-1 text-xs"
               >
-                @davidamunga
-              </a>
-            </p>
+                <History className="w-3 h-3" />
+                History
+              </Button>
+            </div>
             <div className="flex items-center gap-3">
               {appVersion && <span className="">v{appVersion}</span>}
               <UpdateChecker showButton={true} />
