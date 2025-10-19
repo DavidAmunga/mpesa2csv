@@ -17,9 +17,12 @@ import ExportOptions from "./components/export-options";
 import { UpdateChecker } from "./components/update-checker";
 import { Button } from "./components/ui/button";
 import { formatDateForFilename } from "./utils/helpers";
+import { calculateQuickFileHash } from "./utils/fileHash";
+import { usePasswordCacheStore } from "./stores/passwordCacheStore";
 
 function App() {
   const [files, setFiles] = useState<File[]>([]);
+  const [fileHashes, setFileHashes] = useState<Map<number, string>>(new Map());
   const [status, setStatus] = useState<FileStatus>(FileStatus.IDLE);
   const [error, setError] = useState<string | undefined>(undefined);
   const [statements, setStatements] = useState<MPesaStatement[]>([]);
@@ -40,6 +43,9 @@ function App() {
   const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
   const [savedFilePath, setSavedFilePath] = useState<string>("");
   const [currentPlatform, setCurrentPlatform] = useState<string>("");
+  const [cachedPassword, setCachedPassword] = useState<string | null>(null);
+  
+  const { getPassword, savePassword } = usePasswordCacheStore();
 
   const getDefaultFileName = () => {
     return (
@@ -103,9 +109,30 @@ function App() {
     setError(undefined);
     setStatements([]);
     setCurrentFileIndex(0);
+    
+    // Calculate hashes for all files
+    console.log('[App] Starting file hash calculation for', selectedFiles.length, 'files');
+    const hashMap = new Map<number, string>();
+    try {
+      await Promise.all(
+        selectedFiles.map(async (file, index) => {
+          try {
+            const hash = await calculateQuickFileHash(file);
+            hashMap.set(index, hash);
+            console.log('[App] Hash calculated for file', index, ':', file.name, '->', hash.substring(0, 16) + '...');
+          } catch (err) {
+            console.error(`[App] Failed to hash file ${file.name}:`, err);
+          }
+        })
+      );
+      setFileHashes(hashMap);
+      console.log('[App] All hashes calculated. Total:', hashMap.size);
+    } catch (err) {
+      console.error('[App] Error calculating file hashes:', err);
+    }
 
     try {
-      const result = await processFiles(selectedFiles);
+      const result = await processFiles(selectedFiles, 0, [], hashMap);
       if (result?.error) {
         setStatus(FileStatus.ERROR);
         setError(result.error);
@@ -121,7 +148,8 @@ function App() {
   const processFiles = async (
     filesToProcess: File[],
     startIndex: number = 0,
-    existingStatements: MPesaStatement[] = []
+    existingStatements: MPesaStatement[] = [],
+    hashMap?: Map<number, string>
   ) => {
     const processedStatements: MPesaStatement[] = [...existingStatements];
 
@@ -130,6 +158,12 @@ function App() {
       const file = filesToProcess[i];
 
       try {
+        // Get cached password if available
+        const fileHash = (hashMap || fileHashes).get(i);
+        console.log('[App] Processing file', i, '- Hash:', fileHash ? fileHash.substring(0, 16) + '...' : 'NO HASH');
+        const foundCachedPassword = fileHash ? getPassword(fileHash) : null;
+        console.log('[App] Cached password for file', i, ':', foundCachedPassword ? '***FOUND***' : 'NOT FOUND');
+        
         const result = (await Promise.race([
           PdfService.loadPdf(file),
           new Promise((_, reject) =>
@@ -141,10 +175,17 @@ function App() {
         ])) as { isProtected: boolean; pdf?: any };
 
         if (result.isProtected) {
+          // Set cached password so the PasswordPrompt can auto-fill
+          if (foundCachedPassword) {
+            console.log('[App] ✅ Setting cached password for auto-fill');
+            setCachedPassword(foundCachedPassword);
+          }
           setStatus(FileStatus.PROTECTED);
           return { needsPassword: true, fileIndex: i, processedStatements };
         } else if (result.pdf) {
           setStatus(FileStatus.PROCESSING);
+          console.log('[App] ℹ️ No password needed for:', file.name);
+          
           const statement = (await Promise.race([
             PdfService.parseMpesaStatement(result.pdf),
             new Promise((_, reject) =>
@@ -224,10 +265,26 @@ function App() {
 
     setStatus(FileStatus.PROCESSING);
     setError(undefined);
+    setCachedPassword(null); // Clear cached password after use
 
     try {
       const currentFile = files[currentFileIndex];
       const pdf = await PdfService.unlockPdf(currentFile, password);
+
+      // Save password to cache if file was successfully unlocked
+      const fileHash = fileHashes.get(currentFileIndex);
+      console.log('[App] Attempting to save password for file', currentFileIndex);
+      console.log('[App] File hash:', fileHash ? fileHash.substring(0, 16) + '...' : 'NO HASH FOUND');
+      console.log('[App] Current fileHashes map size:', fileHashes.size);
+      console.log('[App] All hashes in map:', Array.from(fileHashes.entries()).map(([k, v]) => `${k}: ${v.substring(0, 16)}...`));
+      
+      if (fileHash) {
+        console.log('[App] ✅ Saving password to cache for:', currentFile.name);
+        savePassword(fileHash, password, currentFile.name);
+        console.log('[App] ✅ Password saved successfully');
+      } else {
+        console.error('[App] ❌ Cannot save password - no hash found for file index:', currentFileIndex);
+      }
 
       const statement = await PdfService.parseMpesaStatement(pdf);
       statement.fileName = currentFile.name;
@@ -270,6 +327,7 @@ function App() {
     if (files.length === 0) return;
 
     setError(undefined);
+    setCachedPassword(null); // Clear cached password when skipping
     const nextIndex = currentFileIndex + 1;
 
     if (nextIndex < files.length) {
@@ -306,6 +364,7 @@ function App() {
 
   const handleReset = () => {
     setFiles([]);
+    setFileHashes(new Map());
     setStatus(FileStatus.IDLE);
     setError(undefined);
     setStatements([]);
@@ -313,6 +372,7 @@ function App() {
     setIsDownloading(false);
     setDownloadSuccess(false);
     setSavedFilePath("");
+    setCachedPassword(null);
 
     if (exportLink) {
       URL.revokeObjectURL(exportLink);
@@ -454,6 +514,7 @@ function App() {
                   currentFileName={files[currentFileIndex]?.name}
                   currentFileIndex={currentFileIndex}
                   totalFiles={files.length}
+                  defaultPassword={cachedPassword}
                 />
               </div>
             ) : status === FileStatus.PROCESSING ? (

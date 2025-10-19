@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FileStatus } from "../types";
 import { Lock } from "lucide-react";
 import { cn } from "../lib/utils";
@@ -14,6 +14,7 @@ interface PasswordPromptProps {
   currentFileName?: string;
   currentFileIndex?: number;
   totalFiles?: number;
+  defaultPassword?: string | null;
 }
 
 const PasswordPrompt: React.FC<PasswordPromptProps> = ({
@@ -25,8 +26,19 @@ const PasswordPrompt: React.FC<PasswordPromptProps> = ({
   currentFileName,
   currentFileIndex,
   totalFiles,
+  defaultPassword,
 }) => {
   const [password, setPassword] = useState<string>("");
+  const [isAutoFilled, setIsAutoFilled] = useState<boolean>(false);
+
+  // Auto-fill password when cached password is available
+  useEffect(() => {
+    if (defaultPassword) {
+      console.log('[PasswordPrompt] Auto-filling password from cache');
+      setPassword(defaultPassword);
+      setIsAutoFilled(true);
+    }
+  }, [defaultPassword]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,8 +68,14 @@ const PasswordPrompt: React.FC<PasswordPromptProps> = ({
       )}
 
       <p className=" max-w-md text-center">
-        This PDF is password protected. Please enter the password to unlock it.
+        This PDF is password protected. {isAutoFilled ? 'Password auto-filled from cache.' : 'Please enter the password to unlock it.'}
       </p>
+      
+      {isAutoFilled && (
+        <div className="text-sm text-green-600 dark:text-green-400 font-medium">
+          ✅ Password remembered - click Unlock to continue
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="w-full  mt-4">
         <div className="space-y-4">
