@@ -150,6 +150,7 @@ const FileHistoryCard: React.FC<FileHistoryCardProps> = ({
     if (showConfirmDelete) {
       onRemove();
     } else {
+      setShowConfirmDelete(true);
       setTimeout(() => setShowConfirmDelete(false), 3000);
     }
   };
