@@ -381,7 +381,7 @@ function App() {
     }
   };
 
-  const saveToRecentFiles = (
+  const saveToRecentFiles = async (
     processedFiles: File[],
     statement: MPesaStatement,
     hashMap: Map<number, string>
@@ -391,13 +391,13 @@ function App() {
     console.log('[RecentFiles] Statement has', statement.transactions.length, 'transactions');
     console.log('[RecentFiles] HashMap size:', hashMap.size);
     
-    processedFiles.forEach((file, index) => {
+    for (const [index, file] of processedFiles.entries()) {
       const fileHash = hashMap.get(index);
       console.log(`[RecentFiles] File ${index}:`, file.name, 'Hash:', fileHash ? fileHash.substring(0, 16) + '...' : 'NO HASH');
       
       if (!fileHash) {
         console.error('[RecentFiles] ❌ Skipping file - no hash found for index:', index);
-        return;
+        continue;
       }
 
       // Calculate date range from transactions
@@ -423,6 +423,18 @@ function App() {
       
       console.log('[RecentFiles] Totals - Paid In:', totalPaidIn, 'Withdrawn:', totalWithdrawn, 'Balance:', finalBalance);
 
+      // Convert file to base64 for storage
+      let fileData: string | undefined;
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        const binaryString = Array.from(uint8Array, byte => String.fromCharCode(byte)).join('');
+        fileData = btoa(binaryString);
+        console.log('[RecentFiles] File data encoded, size:', fileData.length, 'chars');
+      } catch (error) {
+        console.error('[RecentFiles] Failed to encode file:', error);
+      }
+
       const recentFileEntry = {
         id: `${fileHash}-${Date.now()}`,
         fileName: file.name,
@@ -435,14 +447,44 @@ function App() {
         totalPaidIn,
         totalWithdrawn,
         finalBalance,
+        fileData, // Store base64 encoded file
       };
       
-      console.log('[RecentFiles] Adding entry:', recentFileEntry);
+      console.log('[RecentFiles] Adding entry:', { ...recentFileEntry, fileData: fileData ? 'STORED' : 'NOT_STORED' });
       addRecentFile(recentFileEntry);
       console.log('[RecentFiles] ✅ Entry added successfully');
-    });
+    }
     
     console.log('[RecentFiles] saveToRecentFiles completed');
+  };
+
+  const handleReprocessFile = async (fileEntry: any) => {
+    console.log('[App] Reprocessing file from history:', fileEntry.fileName);
+    
+    if (!fileEntry.fileData) {
+      setError('File data not available for reprocessing');
+      return;
+    }
+    
+    try {
+      // Decode base64 back to File object
+      const binaryString = atob(fileEntry.fileData);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const file = new File([blob], fileEntry.fileName, { type: 'application/pdf' });
+      
+      console.log('[App] File reconstructed:', file.name, file.size);
+      
+      // Close history and process the file
+      setShowHistory(false);
+      handleFilesSelected([file]);
+    } catch (error) {
+      console.error('[App] Failed to reprocess file:', error);
+      setError('Failed to reprocess file from history');
+    }
   };
 
   const handleReset = () => {
@@ -581,8 +623,11 @@ function App() {
             }
           }}
         >
-          <div className="rounded-lg shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden border">
-            <RecentFilesHistory onClose={() => setShowHistory(false)} />
+          <div className="rounded-lg shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden border border-zinc-800 dark:border-zinc-800">
+            <RecentFilesHistory 
+              onClose={() => setShowHistory(false)} 
+              onReprocessFile={handleReprocessFile}
+            />
           </div>
         </div>
       )}

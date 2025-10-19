@@ -1,14 +1,15 @@
 import React, { useState } from "react";
 import { useRecentFilesStore, RecentFileEntry } from "../stores/recentFilesStore";
-import { History, Trash2, FileText, Calendar, Hash, Lock, TrendingUp, TrendingDown, X } from "lucide-react";
+import { History, Trash2, FileText, Calendar, Hash, Lock, TrendingUp, TrendingDown, X, RefreshCw } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 
 interface RecentFilesHistoryProps {
   onClose?: () => void;
+  onReprocessFile?: (file: RecentFileEntry) => void;
 }
 
-const RecentFilesHistory: React.FC<RecentFilesHistoryProps> = ({ onClose }) => {
+const RecentFilesHistory: React.FC<RecentFilesHistoryProps> = ({ onClose, onReprocessFile }) => {
   const { files, removeFile, clearAll } = useRecentFilesStore();
   const [showConfirmClear, setShowConfirmClear] = useState(false);
 
@@ -53,11 +54,11 @@ const RecentFilesHistory: React.FC<RecentFilesHistoryProps> = ({ onClose }) => {
 
   if (files.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 space-y-4 backdrop-blur-xl bg-background/95">
-        <History className="w-16 h-16 text-muted-foreground/50" />
+      <div className="flex flex-col items-center justify-center p-8 space-y-4 bg-zinc-900/95 dark:bg-zinc-900/95">
+        <History className="w-16 h-16 text-gray-500" />
         <div className="text-center">
-          <h3 className="text-lg font-semibold mb-2">No History Yet</h3>
-          <p className="text-sm text-muted-foreground">
+          <h3 className="text-lg font-semibold mb-2 text-white">No History Yet</h3>
+          <p className="text-sm text-gray-400">
             Processed PDF files will appear here
           </p>
         </div>
@@ -76,19 +77,19 @@ const RecentFilesHistory: React.FC<RecentFilesHistoryProps> = ({ onClose }) => {
   }
 
   return (
-    <div className="flex flex-col h-full backdrop-blur-xl bg-background/95">
-      <div className="flex items-center justify-between p-4 border-b backdrop-blur-sm">
+    <div className="flex flex-col h-full bg-zinc-900/95 dark:bg-zinc-900/95">
+      <div className="flex items-center justify-between p-4 border-b border-zinc-800 dark:border-zinc-800">
         <div className="flex items-center gap-2">
-          <History className="w-5 h-5" />
-          <h2 className="text-lg font-semibold">Recent Files</h2>
-          <span className="text-sm text-muted-foreground">({files.length})</span>
+          <History className="w-5 h-5 text-white" />
+          <h2 className="text-lg font-semibold text-white">Recent Files</h2>
+          <span className="text-sm text-gray-400">({files.length})</span>
         </div>
         <div className="flex gap-2">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={handleClearAll}
-            className={showConfirmClear ? "border-destructive text-destructive" : ""}
+            className={showConfirmClear ? "border border-red-500 bg-red-500/20 text-red-400 hover:bg-red-500/30" : "border border-gray-600 bg-zinc-800 text-white hover:bg-zinc-700"}
           >
             <Trash2 className="w-4 h-4 mr-1" />
             {showConfirmClear ? "Confirm Clear All?" : "Clear All"}
@@ -114,6 +115,7 @@ const RecentFilesHistory: React.FC<RecentFilesHistoryProps> = ({ onClose }) => {
               key={file.id}
               file={file}
               onRemove={() => removeFile(file.id)}
+              onReprocess={onReprocessFile ? () => onReprocessFile(file) : undefined}
               formatDate={formatDate}
               formatFileSize={formatFileSize}
               formatCurrency={formatCurrency}
@@ -128,6 +130,7 @@ const RecentFilesHistory: React.FC<RecentFilesHistoryProps> = ({ onClose }) => {
 interface FileHistoryCardProps {
   file: RecentFileEntry;
   onRemove: () => void;
+  onReprocess?: () => void;
   formatDate: (timestamp: number) => string;
   formatFileSize: (bytes: number) => string;
   formatCurrency: (amount: number) => string;
@@ -136,6 +139,7 @@ interface FileHistoryCardProps {
 const FileHistoryCard: React.FC<FileHistoryCardProps> = ({
   file,
   onRemove,
+  onReprocess,
   formatDate,
   formatFileSize,
   formatCurrency,
@@ -146,39 +150,53 @@ const FileHistoryCard: React.FC<FileHistoryCardProps> = ({
     if (showConfirmDelete) {
       onRemove();
     } else {
-      setShowConfirmDelete(true);
       setTimeout(() => setShowConfirmDelete(false), 3000);
     }
   };
 
   return (
-    <div className="border rounded-lg p-4 backdrop-blur-sm bg-background/50 hover:bg-accent/40 hover:backdrop-blur-md transition-all duration-200">
+    <div className="border border-zinc-800 dark:border-zinc-800 rounded-lg p-4 bg-zinc-800/50 dark:bg-zinc-800/50 hover:bg-zinc-700/60 dark:hover:bg-zinc-700/60 transition-all duration-200">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-            <h3 className="font-medium truncate text-foreground" title={file.fileName}>
+            <FileText className="w-4 h-4 text-green-400 flex-shrink-0" />
+            <h3 className="font-medium truncate text-white" title={file.fileName}>
               {file.fileName}
             </h3>
             {file.isPasswordProtected && (
-              <Lock className="w-3 h-3 text-yellow-600 dark:text-yellow-400 flex-shrink-0" title="Password Protected" />
+              <Lock className="w-3 h-3 text-yellow-400 flex-shrink-0" title="Password Protected" />
+            )}
+            {onReprocess && file.fileData && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReprocess();
+                }}
+                className="ml-auto h-6 px-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20"
+                title="Reprocess this file"
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                <span className="text-xs">Reprocess</span>
+              </Button>
             )}
           </div>
 
           <div className="space-y-1.5 text-xs">
-            <div className="flex items-center gap-1 text-muted-foreground">
+            <div className="flex items-center gap-1 text-gray-400">
               <Calendar className="w-3 h-3 flex-shrink-0" />
               <span className="truncate">{formatDate(file.processedDate)}</span>
             </div>
-            <div className="flex items-center gap-1 text-muted-foreground">
+            <div className="flex items-center gap-1 text-gray-400">
               <Hash className="w-3 h-3 flex-shrink-0" />
-              <span className="font-medium text-foreground">{file.transactionCount}</span>
+              <span className="font-medium text-white">{file.transactionCount}</span>
               <span>transactions</span>
             </div>
             
             {file.dateRange && (
-              <div className="text-xs text-foreground/80 pt-1">
-                <span className="font-medium">Period:</span> {file.dateRange.from} → {file.dateRange.to}
+              <div className="text-xs text-gray-300 pt-1">
+                <span className="font-medium text-white">Period:</span> {file.dateRange.from} → {file.dateRange.to}
               </div>
             )}
           </div>
@@ -200,7 +218,7 @@ const FileHistoryCard: React.FC<FileHistoryCardProps> = ({
             </div>
           )}
 
-          <div className="text-xs text-muted-foreground/70 mt-1.5 font-mono">
+          <div className="text-xs text-gray-500 mt-1.5 font-mono">
             {formatFileSize(file.fileSize)}
           </div>
         </div>
@@ -209,7 +227,7 @@ const FileHistoryCard: React.FC<FileHistoryCardProps> = ({
           variant="ghost"
           size="sm"
           onClick={handleDelete}
-          className={showConfirmDelete ? "text-destructive" : ""}
+          className={showConfirmDelete ? "text-red-400 hover:text-red-300 hover:bg-red-500/20" : "text-gray-400 hover:text-white hover:bg-gray-700"}
         >
           <Trash2 className="w-4 h-4" />
         </Button>

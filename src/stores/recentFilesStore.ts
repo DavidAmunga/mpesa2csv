@@ -17,6 +17,8 @@ export interface RecentFileEntry {
   totalPaidIn?: number;
   totalWithdrawn?: number;
   finalBalance?: number;
+  // Store file data as base64 for re-processing
+  fileData?: string; // base64 encoded file data
 }
 
 interface RecentFilesState {
