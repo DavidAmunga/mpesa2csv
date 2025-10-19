@@ -17,6 +17,8 @@ interface PasswordCacheState {
   getAll: () => PasswordCacheEntry[];
 }
 
+const MAX_CACHE_SIZE = 50;
+
 /**
  * Store for caching PDF passwords based on file hash
  * Persisted to localStorage
@@ -42,17 +44,39 @@ export const usePasswordCacheStore = create<PasswordCacheState>()(
           fileName,
           passwordLength: password.length,
         });
-        set((state) => ({
-          passwords: {
-            ...state.passwords,
-            [fileHash]: {
-              fileHash,
-              password,
-              fileName,
-              timestamp: Date.now(),
-            },
-          },
-        }));
+        
+        set((state) => {
+          const currentPasswords = { ...state.passwords };
+          const currentSize = Object.keys(currentPasswords).length;
+          
+          // Add or update the password
+          currentPasswords[fileHash] = {
+            fileHash,
+            password,
+            fileName,
+            timestamp: Date.now(),
+          };
+          
+          // If we exceeded the limit, remove oldest entries
+          if (currentSize >= MAX_CACHE_SIZE && !state.passwords[fileHash]) {
+            console.log('[PasswordCache] Cache limit reached, purging oldest entries');
+            
+            // Sort entries by timestamp (oldest first)
+            const sortedEntries = Object.entries(currentPasswords)
+              .sort(([, a], [, b]) => a.timestamp - b.timestamp);
+            
+            // Remove oldest entries until we're under the limit
+            const entriesToRemove = sortedEntries.length - MAX_CACHE_SIZE + 1;
+            for (let i = 0; i < entriesToRemove; i++) {
+              const [hashToRemove] = sortedEntries[i];
+              console.log('[PasswordCache] Removing old entry:', currentPasswords[hashToRemove].fileName);
+              delete currentPasswords[hashToRemove];
+            }
+          }
+          
+          return { passwords: currentPasswords };
+        });
+        
         console.log('[PasswordCache] After save, total entries:', Object.keys(get().passwords).length);
       },
 
