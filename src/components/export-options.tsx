@@ -59,6 +59,12 @@ const SHEET_OPTIONS = [
     description:
       "Groups transactions by amount ranges (e.g., <100 KES, 100-500 KES, >500 KES), showing counts, totals, and percentages for inflows and outflows separately. Excludes charges and fees.",
   },
+  {
+    key: "includeTopContactsSheet" as keyof ExportOptionsType,
+    name: "Top Contacts",
+    description:
+      "Top 20 people/entities you send money to and receive money from, with totals and transaction counts. Excludes charges and fees.",
+  },
 ];
 
 export default function ExportOptions({
