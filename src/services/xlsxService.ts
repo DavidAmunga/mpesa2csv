@@ -6,6 +6,7 @@ import {
   addMonthlyWeeklyBreakdownSheet,
   addDailyBalanceTrackerSheet,
   addTransactionAmountDistributionSheet,
+  addTopContactsSheet,
 } from "./exports";
 import { applyTransactionFilters } from "./transactionFilters";
 import { formatDate } from "../utils/dateFormatter";
@@ -129,6 +130,11 @@ export class XlsxService {
     // Add Transaction Amount Distribution sheet if requested
     if (options?.includeAmountDistributionSheet) {
       addTransactionAmountDistributionSheet(workbook, statement);
+    }
+
+    // Add Top Contacts sheet if requested
+    if (options?.includeTopContactsSheet) {
+      addTopContactsSheet(workbook, statement);
     }
 
     const buffer = await workbook.xlsx.writeBuffer();

@@ -34,6 +34,7 @@ function App() {
     includeSummarySheet: false,
     includeBreakdownSheet: false,
     includeDailyBalanceSheet: false,
+    includeTopContactsSheet: false,
   });
   const [currentFileIndex, setCurrentFileIndex] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);

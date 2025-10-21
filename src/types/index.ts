@@ -51,6 +51,7 @@ export interface ExportOptions {
   includeBreakdownSheet?: boolean;
   includeDailyBalanceSheet?: boolean;
   includeAmountDistributionSheet?: boolean;
+  includeTopContactsSheet?: boolean;
   // Filter options
   filterOutCharges?: boolean;
   sortOrder?: SortOrder;
