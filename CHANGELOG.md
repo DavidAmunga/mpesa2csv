@@ -1,5 +1,15 @@
 # mpesa2csv
 
+## 0.10.0
+
+### Minor Changes
+
+- 68f7ad4: feat: add top contacts sheet
+
+### Patch Changes
+
+- 16d176f: chore: improve release workflow
+
 ## 0.9.0
 
 ### Minor Changes
