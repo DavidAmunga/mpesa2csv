@@ -15,6 +15,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   status,
 }) => {
   const [dragActive, setDragActive] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Set up Tauri webview drag-drop event listener
@@ -82,11 +83,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   };
 
   const handleTauriDrop = async (filePaths: string[]) => {
+    setUploadError("");
     try {
       const pdfPaths = filePaths.filter(isPdfFilePath);
 
       if (pdfPaths.length === 0) {
-        alert("Please drop only PDF files.");
+        setUploadError("Please drop only PDF files.");
         return;
       }
 
@@ -109,15 +111,19 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
       if (files.length > 0) {
         onFilesSelected(files);
+        setUploadError("");
       } else {
-        alert("Failed to read the dropped PDF files. Please try again.");
+        setUploadError(
+          "Failed to read the dropped PDF files. Please try again."
+        );
       }
     } catch (error) {
-      alert("Error processing dropped files. Please try again.");
+      setUploadError("Error processing dropped files. Please try again.");
     }
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setUploadError("");
     if (e.target.files && e.target.files.length > 0) {
       const files: File[] = [];
       const allFiles = Array.from(e.target.files);
@@ -130,8 +136,9 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
       if (files.length > 0) {
         onFilesSelected(files);
+        setUploadError("");
       } else {
-        alert("Please select only PDF files.");
+        setUploadError("Please select only PDF files.");
       }
     }
   };
@@ -208,6 +215,14 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         {status === FileStatus.LOADING && (
           <div className="mt-4">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
+          </div>
+        )}
+
+        {uploadError && (
+          <div className="mt-4 w-full max-w-md">
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+              <p className="text-destructive text-sm">{uploadError}</p>
+            </div>
           </div>
         )}
 

@@ -4,6 +4,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { RefreshCw } from "lucide-react";
 import { Button } from "./ui/button";
+import { URLS } from "../constants";
 
 const dismissedVersions = new Set<string>();
 
@@ -87,7 +88,10 @@ export function UpdateChecker({
       await update.downloadAndInstall();
       await relaunch();
     } catch (error) {
-      console.error("Failed to install update:", error);
+      // Log error for debugging purposes
+      if (error instanceof Error) {
+        console.error("Update installation failed:", error.message);
+      }
       await message(
         "Failed to download and install the update. Please try again later.",
         {
@@ -106,17 +110,13 @@ export function UpdateChecker({
 
         if (update) {
           if (!forceShow && dismissedVersions.has(update.version)) {
-            console.log(
-              `Update ${update.version} was dismissed in this session, skipping...`
-            );
+            // Update already dismissed in this session
             return;
           }
 
           let releaseNotes = "No release notes available.";
           try {
-            const response = await fetch(
-              `https://raw.githubusercontent.com/DavidAmunga/mpesa2csv/main/CHANGELOG.md`
-            );
+            const response = await fetch(URLS.CHANGELOG);
             if (response.ok) {
               const changelogText = await response.text();
               if (changelogText && changelogText.trim()) {
@@ -124,10 +124,7 @@ export function UpdateChecker({
               }
             }
           } catch (apiError) {
-            console.warn(
-              "Failed to fetch changelog from GitHub repository:",
-              apiError
-            );
+            // Failed to fetch changelog, fallback to update body if available
             if (update.body) {
               releaseNotes = update.body;
             }
@@ -150,9 +147,7 @@ export function UpdateChecker({
             await installUpdate(update);
           } else {
             dismissedVersions.add(update.version);
-            console.log(
-              `Update ${update.version} dismissed until app relaunch`
-            );
+            // Update dismissed until app relaunch
           }
         } else if (forceShow) {
           await message("You're running the latest version!", {
@@ -161,7 +156,10 @@ export function UpdateChecker({
           });
         }
       } catch (error) {
-        console.error("Failed to check for updates:", error);
+        // Log error for debugging purposes
+        if (error instanceof Error) {
+          console.error("Update check failed:", error.message);
+        }
         if (forceShow) {
           await message(
             "Failed to check for updates. Please try again later.",

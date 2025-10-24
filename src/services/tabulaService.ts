@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { MPesaStatement, Transaction } from "../types";
 import { tempDir, join } from "@tauri-apps/api/path";
 import { writeFile, readTextFile, remove } from "@tauri-apps/plugin-fs";
+import { FILE_PREFIXES } from "../constants";
 
 export class TabulaService {
   /**
@@ -12,8 +13,8 @@ export class TabulaService {
     password?: string
   ): Promise<string> {
     const timestamp = Date.now();
-    const tempInputName = `mpesa_temp_${timestamp}.pdf`;
-    const tempOutputName = `mpesa_output_${timestamp}.csv`;
+    const tempInputName = `${FILE_PREFIXES.TEMP_INPUT}${timestamp}.pdf`;
+    const tempOutputName = `${FILE_PREFIXES.TEMP_OUTPUT}${timestamp}.csv`;
 
     try {
       const tempDirPath = await tempDir();
@@ -44,7 +45,12 @@ export class TabulaService {
       try {
         await remove(await join(tempDirPath, tempInputName));
         await remove(await join(tempDirPath, tempOutputName));
-      } catch (e) {}
+      } catch (error) {
+        console.warn(
+          "Failed to clean up temp files during error handling:",
+          error
+        );
+      }
       throw new Error(`Tabula extraction failed: ${error.message || error}`);
     }
   }
