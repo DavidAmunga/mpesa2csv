@@ -18,6 +18,7 @@ import ExportOptions from "./components/export-options";
 import { UpdateChecker } from "./components/update-checker";
 import { Button } from "./components/ui/button";
 import { formatDateForFilename } from "./utils/helpers";
+import { TIMEOUTS, URLS } from "./constants";
 
 function App() {
   const [files, setFiles] = useState<File[]>([]);
@@ -86,14 +87,13 @@ function App() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        const [version] = await Promise.all([
-          invoke<string>("get_app_version"),
-          // platform(),
-        ]);
+        const version = await invoke<string>("get_app_version");
         setAppVersion(version);
         setCurrentPlatform(platform());
       } catch (error) {
-        console.error("Failed to initialize app:", error);
+        if (error instanceof Error) {
+          console.error("App initialization failed:", error.message);
+        }
       }
     };
     initializeApp();
@@ -139,8 +139,14 @@ function App() {
           new Promise<string>((_, reject) =>
             setTimeout(
               () =>
-                reject(new Error("PDF processing timeout after 60 seconds")),
-              60000
+                reject(
+                  new Error(
+                    `PDF processing timeout after ${
+                      TIMEOUTS.PDF_PROCESSING / 1000
+                    } seconds`
+                  )
+                ),
+              TIMEOUTS.PDF_PROCESSING
             )
           ),
         ]);
@@ -415,7 +421,6 @@ function App() {
         setSavedFilePath(result);
       }
     } catch (error: any) {
-      console.error(error);
       handleDownloadError(error);
     } finally {
       setIsDownloading(false);
@@ -438,12 +443,11 @@ function App() {
 
   const handleOpenFeedback = async () => {
     try {
-      await openUrl("https://mpesa2csv.com/feedback");
+      await openUrl(URLS.FEEDBACK);
     } catch (error: any) {
-      console.error(
-        "Failed to open feedback page:",
-        error.message || error.toString()
-      );
+      if (error instanceof Error) {
+        console.error("Failed to open feedback page:", error.message);
+      }
     }
   };
 
@@ -624,7 +628,7 @@ function App() {
             <p>
               Built by{" "}
               <a
-                href="https://twitter.com/davidamunga_"
+                href={URLS.TWITTER}
                 className="text-green-500 hover:text-green-500/80 font-medium transition-colors"
                 target="_blank"
                 rel="noopener noreferrer"

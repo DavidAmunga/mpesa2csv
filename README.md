@@ -5,7 +5,7 @@
   
   **Convert M-PESA Statement PDFs to CSV/Excel with Advanced Analytics**
   
-  [![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](https://github.com/DavidAmunga/mpesa2csv/releases)
+  [![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/DavidAmunga/mpesa2csv/releases)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-lightgrey.svg)](https://github.com/DavidAmunga/mpesa2csv/releases)
   [![Downloads](https://img.shields.io/github/downloads/DavidAmunga/mpesa2csv/total.svg)](https://github.com/DavidAmunga/mpesa2csv/releases)
@@ -27,13 +27,16 @@
 ## Features
 
 ### Core Functionality
+
 - **PDF to CSV/Excel Conversion** - Extract M-PESA statement data with high accuracy using Tabula
 - **Password-Protected PDFs** - Seamlessly handle encrypted PDF files
 - **Multiple Export Formats** - Export as CSV or Excel (XLSX) with advanced formatting
 - **Paybill Statement Support** - Full support for both regular and paybill M-PESA statements
 
 ### Advanced Analytics & Reports
+
 When exporting to Excel, optionally include:
+
 - **Charges & Fees Sheet** - Separate breakdown of all transaction charges and fees
 - **Financial Summary** - Comprehensive analysis with cash flow, spending patterns, and insights
 - **Monthly & Weekly Breakdown** - Pivot-like tables with time-based aggregations
@@ -41,12 +44,14 @@ When exporting to Excel, optionally include:
 - **Transaction Amount Distribution** - Categorized transaction analysis by amount ranges
 
 ### Smart Filtering
+
 - **Date Range Filters** - Export specific time periods
 - **Transaction Type Filters** - Filter by transaction categories (payments, withdrawals, deposits, etc.)
 - **Amount Range Filters** - Focus on transactions within specific amount ranges
 - **Custom Date Formatting** - Choose your preferred date format for exports
 
 ### Privacy & Performance
+
 - **100% Local Processing** - Your statements never leave your computer
 - **Fast & Efficient** - Powered by Tabula for accurate PDF table extraction
 - **Modern UI** - Beautiful, intuitive interface with theme support
@@ -58,11 +63,11 @@ When exporting to Excel, optionally include:
 
 Download the latest release for your operating system from the [Releases](https://github.com/DavidAmunga/mpesa2csv/releases) page:
 
-| Platform | Download |
-|----------|----------|
-| **Windows** | `.exe` installer |
-| **macOS** | `.dmg` file (Intel & Apple Silicon) |
-| **Linux** | `.AppImage` (portable) or `.deb` package |
+| Platform    | Download                                 |
+| ----------- | ---------------------------------------- |
+| **Windows** | `.exe` installer                         |
+| **macOS**   | `.dmg` file (Intel & Apple Silicon)      |
+| **Linux**   | `.AppImage` (portable) or `.deb` package |
 
 ### Auto-Updates
 
@@ -100,26 +105,29 @@ The application includes automatic update functionality. When a new version is a
 - **Excel Generation**: [ExcelJS](https://github.com/exceljs/exceljs)
 - **CSV Generation**: [PapaParse](https://www.papaparse.com/)
 
-
 ### Building from Source
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/DavidAmunga/mpesa2csv.git
    cd mpesa2csv/app
    ```
 
 2. **Install dependencies**
+
    ```bash
    pnpm install
    ```
 
 3. **Set up build JRE** (automatic during build)
+
    ```bash
    pnpm run setup-jre
    ```
 
 4. **Run in development mode**
+
    ```bash
    pnpm run tauri:dev
    ```

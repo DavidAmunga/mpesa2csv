@@ -1,0 +1,149 @@
+name: "Changeset Release"
+
+on:
+    workflow_dispatch:
+        inputs:
+            force_version:
+                description: "Force a specific version bump (leave empty for auto)"
+                required: false
+                type: choice
+                options:
+                    - patch
+                    - minor
+                    - major
+
+concurrency:
+    group: changeset-release
+    cancel-in-progress: false
+
+permissions:
+    contents: write
+    pull-requests: write
+
+jobs:
+    check-changesets:
+        name: "Check for Changesets"
+        runs-on: ubuntu-latest
+        outputs:
+            has_changesets: ${{ steps.check.outputs.has_changesets }}
+            changeset_count: ${{ steps.check.outputs.changeset_count }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Check for pending changesets
+              id: check
+              run: |
+                  HAS_CHANGESETS="false"
+                  CHANGESET_COUNT=0
+
+                  if [ -d ".changeset" ]; then
+                    CHANGESET_COUNT=$(find .changeset -name "*.md" -not -name "README.md" -not -name "config.json" 2>/dev/null | wc -l | tr -d ' ')
+                    if [ "$CHANGESET_COUNT" -gt 0 ]; then
+                      HAS_CHANGESETS="true"
+                      echo "✅ Found $CHANGESET_COUNT pending changeset(s)"
+                      echo ""
+                      echo "Pending changesets:"
+                      find .changeset -name "*.md" -not -name "README.md" -not -name "config.json" -exec basename {} \;
+                    else
+                      echo "⚠️ No pending changesets found"
+                    fi
+                  else
+                    echo "❌ .changeset directory not found"
+                  fi
+
+                  echo "has_changesets=$HAS_CHANGESETS" >> $GITHUB_OUTPUT
+                  echo "changeset_count=$CHANGESET_COUNT" >> $GITHUB_OUTPUT
+
+    # Step 2: Create or update version PR
+    create-version-pr:
+        name: "Create Version Bump PR"
+        runs-on: ubuntu-latest
+        needs: check-changesets
+        if: needs.check-changesets.outputs.has_changesets == 'true'
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: lts/*
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Get current version
+              id: current_version
+              run: |
+                  CURRENT_VERSION=$(node -p "require('./package.json').version")
+                  echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+                  echo "📦 Current version: $CURRENT_VERSION"
+
+            - name: Create Release Pull Request
+              id: changeset_pr
+              uses: changesets/action@v1
+              with:
+                  version: pnpm run version
+                  title: "chore: release version packages"
+                  commit: "chore: release version packages"
+                  createGithubReleases: false
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Get new version
+              id: new_version
+              run: |
+                  NEW_VERSION=$(node -p "require('./package.json').version")
+                  echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+                  echo "✅ New version will be: $NEW_VERSION"
+
+            - name: PR Summary
+              if: steps.changeset_pr.outputs.pullRequestNumber != ''
+              run: |
+                  PR_NUMBER="${{ steps.changeset_pr.outputs.pullRequestNumber }}"
+                  echo "🎉 Version Bump PR Created!"
+                  echo ""
+                  echo "📋 Details:"
+                  echo "  • Current version: ${{ steps.current_version.outputs.version }}"
+                  echo "  • New version: ${{ steps.new_version.outputs.version }}"
+                  echo "  • Changesets processed: ${{ needs.check-changesets.outputs.changeset_count }}"
+                  echo "  • PR: #$PR_NUMBER"
+                  echo ""
+                  echo "🔗 Next steps:"
+                  echo "  1. Review the version bump PR: https://github.com/${{ github.repository }}/pull/$PR_NUMBER"
+                  echo "  2. Merge the PR when ready"
+                  echo "  3. Manually trigger the 'Main Release' workflow to publish"
+
+            - name: Update existing PR comment
+              if: steps.changeset_pr.outputs.pullRequestNumber == ''
+              run: |
+                  echo "ℹ️ Version bump PR already exists or no version changes needed"
+                  echo ""
+                  echo "Check for existing PR with label 'changeset' or title 'release version packages'"
+
+    no-changesets:
+        name: "No Changesets Found"
+        runs-on: ubuntu-latest
+        needs: check-changesets
+        if: needs.check-changesets.outputs.has_changesets == 'false'
+        steps:
+            - name: Display message
+              run: |
+                  echo "⚠️ No pending changesets found!"
+                  echo ""
+                  echo "To create a changeset:"
+                  echo "  1. Run: pnpm changeset"
+                  echo "  2. Follow the prompts to describe your changes"
+                  echo "  3. Commit the changeset file"
+                  echo "  4. Push to your branch"
+                  echo "  5. Run this workflow again"
+                  echo ""
+                  echo "📚 Learn more: https://github.com/changesets/changesets"
+                  exit 1

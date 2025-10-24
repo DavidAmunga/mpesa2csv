@@ -10,6 +10,7 @@ import {
 } from "./exports";
 import { applyTransactionFilters } from "./transactionFilters";
 import { formatDate } from "../utils/dateFormatter";
+import { APP_METADATA } from "../constants";
 
 export class XlsxService {
   static async convertStatementToXlsx(
@@ -23,8 +24,8 @@ export class XlsxService {
     const workbook = new ExcelJS.Workbook();
 
     // Add metadata
-    workbook.creator = "mpesa2csv";
-    workbook.lastModifiedBy = "mpesa2csv";
+    workbook.creator = APP_METADATA.CREATOR;
+    workbook.lastModifiedBy = APP_METADATA.CREATOR;
     workbook.created = new Date();
     workbook.modified = new Date();
 
