@@ -1,10 +1,13 @@
+import { useState } from "react";
 import {
   ExportFormat,
   ExportOptions as ExportOptionsType,
   SortOrder,
   DateFormat,
+  MPesaStatement,
 } from "../types";
 import { ExportService } from "../services/exportService";
+import { WebhookService, WebhookResult } from "../services/webhookService";
 import {
   Select,
   SelectContent,
@@ -15,7 +18,16 @@ import {
 import { Checkbox } from "./ui/checkbox";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
 import { Label } from "./ui/label";
-import { Info } from "lucide-react";
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
+import {
+  Info,
+  Send,
+  CheckCircle2,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import {
   getDateFormatDisplayName,
   getAllDateFormats,
@@ -24,6 +36,7 @@ import {
 interface ExportOptionsProps {
   exportFormat: ExportFormat;
   exportOptions: ExportOptionsType;
+  statement: MPesaStatement;
   onFormatChange: (format: ExportFormat) => void;
   onOptionsChange: (options: ExportOptionsType) => void;
 }
@@ -70,9 +83,15 @@ const SHEET_OPTIONS = [
 export default function ExportOptions({
   exportFormat,
   exportOptions,
+  statement,
   onFormatChange,
   onOptionsChange,
 }: ExportOptionsProps) {
+  const [isWebhookOpen, setIsWebhookOpen] = useState(false);
+  const [endpoint, setEndpoint] = useState<string>("");
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const [result, setResult] = useState<WebhookResult | null>(null);
+
   const handleFormatChange = (value: ExportFormat) => {
     onFormatChange(value);
   };
@@ -114,6 +133,37 @@ export default function ExportOptions({
     };
     onOptionsChange(newOptions);
   };
+
+  const handleSend = async () => {
+    if (!endpoint.trim()) {
+      setResult({
+        success: false,
+        error: "Please enter a webhook URL",
+      });
+      return;
+    }
+
+    setIsSending(true);
+    setResult(null);
+
+    try {
+      const webhookResult = await WebhookService.sendToWebhook(
+        statement,
+        endpoint,
+        exportOptions
+      );
+      setResult(webhookResult);
+    } catch (error: any) {
+      setResult({
+        success: false,
+        error: error.message || "An unexpected error occurred",
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const isValidUrl = endpoint.trim() && WebhookService.isValidUrl(endpoint);
 
   return (
     <div className="space-y-4">
@@ -216,6 +266,130 @@ export default function ExportOptions({
             </Select>
           </div>
         </div>
+      </div>
+
+      <div className="border border-border rounded-lg overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setIsWebhookOpen(!isWebhookOpen)}
+          className="w-full flex items-center justify-between py-2 px-3 bg-muted/10 hover:bg-muted/50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Send className="w-4 h-4" />
+            <Label className="text-sm font-medium cursor-pointer">
+              Send to Webhook
+            </Label>
+          </div>
+          {isWebhookOpen ? (
+            <ChevronUp className="w-4 h-4" />
+          ) : (
+            <ChevronDown className="w-4 h-4" />
+          )}
+        </button>
+
+        {isWebhookOpen && (
+          <div className="p-4 space-y-3 border-t border-border">
+            <p className="text-xs">
+              Send your transaction data as JSON to a webhook endpoint for
+              reconciliation or integration with external systems.
+            </p>
+
+            <div className="space-y-2">
+              <Label htmlFor="endpoint-url" className="text-sm">
+                Webhook URL
+              </Label>
+              <Input
+                id="endpoint-url"
+                type="url"
+                placeholder="https://api.example.com/webhooks/transactions"
+                value={endpoint}
+                onChange={(e) => setEndpoint(e.target.value)}
+                disabled={isSending}
+                className="w-full"
+              />
+            </div>
+
+            {result && (
+              <div
+                className={`rounded-lg border px-2 py-2 ${
+                  result.success
+                    ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900"
+                    : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900"
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  {result.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1 space-y-1.5">
+                    <p
+                      className={`text-xs font-medium ${
+                        result.success
+                          ? "text-green-800 dark:text-green-300"
+                          : "text-red-800 dark:text-red-300"
+                      }`}
+                    >
+                      {result.success
+                        ? "Successfully sent to webhook"
+                        : "Failed to send data"}
+                    </p>
+
+                    {result.statusCode && (
+                      <p className="text-xs text-muted-foreground">
+                        Status: {result.statusCode} {result.statusText}
+                      </p>
+                    )}
+
+                    {result.error && (
+                      <p className="text-xs text-red-700 dark:text-red-400 break-words">
+                        {result.error}
+                      </p>
+                    )}
+
+                    {result.responseBody && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                          View response
+                        </summary>
+                        <pre className="mt-1.5 p-2 bg-zinc-900 rounded text-xs overflow-x-auto max-h-32">
+                          {result.responseBody}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="text-xs text-muted-foreground rounded-md">
+              <p>
+                Ready to send {statement.transactions.length} transaction
+                {statement.transactions.length !== 1 ? "s" : ""} as JSON
+              </p>
+            </div>
+
+            <Button
+              onClick={handleSend}
+              disabled={isSending || !isValidUrl}
+              className="w-full"
+              size="sm"
+            >
+              {isSending ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send to Webhook
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
       {exportFormat === ExportFormat.XLSX && (

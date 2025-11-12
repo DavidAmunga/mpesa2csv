@@ -546,6 +546,7 @@ function App() {
                   <ExportOptions
                     exportFormat={exportFormat}
                     exportOptions={exportOptions}
+                    statement={statements[0]}
                     onFormatChange={handleFormatChange}
                     onOptionsChange={handleOptionsChange}
                   />
