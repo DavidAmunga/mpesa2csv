@@ -323,9 +323,9 @@ jobs:
         with:
           path: |
             src-tauri/resources/build-jre
-          key: ${{ runner.os }}-${{ matrix.platform == 'macos-latest' && 'macos-universal' || matrix.target }}-jre-v4-${{ hashFiles('src-tauri/scripts/setup-build-jre.sh') }}
+          key: ${{ runner.os }}-${{ matrix.target }}-jre-v5-${{ hashFiles('src-tauri/scripts/setup-build-jre.sh') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.platform == 'macos-latest' && 'macos-universal' || matrix.target }}-jre-v4-
+            ${{ runner.os }}-${{ matrix.target }}-jre-v5-
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -333,19 +333,15 @@ jobs:
       - name: Setup JRE for Tabula
         shell: bash
         run: |
-          # For macOS, download both architectures since we build universal
+          # For macOS, download only the architecture we're building for
           if [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
-            echo "📦 Setting up JREs for macOS (both architectures)..."
-            
-            # Download ARM64 JRE
-            echo "⬇️  Downloading ARM64 JRE..."
-            TARGET_PLATFORM=jre-macos-arm64 bash src-tauri/scripts/setup-build-jre.sh
-            
-            # Download x86_64 JRE
-            echo "⬇️  Downloading x86_64 JRE..."
-            TARGET_PLATFORM=jre-macos-x64 bash src-tauri/scripts/setup-build-jre.sh
-            
-            echo "✅ Both JREs downloaded successfully"
+            if [[ "${{ matrix.target }}" == "aarch64-apple-darwin" ]]; then
+              echo "📦 Setting up ARM64 JRE for Apple Silicon build..."
+              TARGET_PLATFORM=jre-macos-arm64 bash src-tauri/scripts/setup-build-jre.sh
+            elif [[ "${{ matrix.target }}" == "x86_64-apple-darwin" ]]; then
+              echo "📦 Setting up x64 JRE for Intel build..."
+              TARGET_PLATFORM=jre-macos-x64 bash src-tauri/scripts/setup-build-jre.sh
+            fi
           else
             # For other platforms, use default detection
             # The script will automatically configure Linux JRE for AppImage bundling
@@ -364,24 +360,13 @@ jobs:
             JRE_DIR="src-tauri/resources/build-jre/jre-linux-x64"
             JAVA_EXE="$JRE_DIR/bin/java"
           elif [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
-            # Check both macOS JREs
-            for arch in arm64 x64; do
-              JRE_DIR="src-tauri/resources/build-jre/jre-macos-$arch"
-              if [ -d "$JRE_DIR" ]; then
-                echo "✅ Found macOS $arch JRE at: $JRE_DIR"
-                echo "   Size: $(du -sh "$JRE_DIR" | cut -f1)"
-                if [ -f "$JRE_DIR/bin/java" ]; then
-                  echo "✅ java binary exists"
-                  "$JRE_DIR/bin/java" -version 2>&1 || echo "⚠️  Could not run java"
-                else
-                  echo "❌ java binary NOT found at: $JRE_DIR/bin/java"
-                fi
-                echo ""
-              else
-                echo "❌ macOS $arch JRE NOT found at: $JRE_DIR"
-              fi
-            done
-            exit 0
+            # Check only the JRE for the architecture we're building
+            if [[ "${{ matrix.target }}" == "aarch64-apple-darwin" ]]; then
+              JRE_DIR="src-tauri/resources/build-jre/jre-macos-arm64"
+            else
+              JRE_DIR="src-tauri/resources/build-jre/jre-macos-x64"
+            fi
+            JAVA_EXE="$JRE_DIR/bin/java"
           fi
 
           echo "Checking JRE directory: $JRE_DIR"
