@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.10.2
+
+### Patch Changes
+
+- 339b23a: fix: macos jre bundling
+
 ## 0.10.1
 
 ### Patch Changes
