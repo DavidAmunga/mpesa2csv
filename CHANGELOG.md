@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.10.1
+
+### Patch Changes
+
+- 0f3a4b6: fix: arm64 jre bundling
+
 ## 0.10.0
 
 ### Minor Changes
