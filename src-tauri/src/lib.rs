@@ -42,15 +42,15 @@ async fn extract_pdf_tables(
     let jar_path = normalize_windows_path(jar_path);
     
     let jre_folder = if cfg!(target_os = "windows") {
-        "jre-windows-x64"
+        "build-jre/jre-windows-x64"
     } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
-        "jre-macos-x64"
+        "build-jre/jre-macos-x64"
     } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-        "jre-macos-arm64"
+        "build-jre/jre-macos-arm64"
     } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        "jre-linux-x64"
+        "build-jre/jre-linux-x64"
     } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-        "jre-linux-arm64"
+        "build-jre/jre-linux-arm64"
     } else {
         return Err(format!("Unsupported platform: {} {}", std::env::consts::OS, std::env::consts::ARCH));
     };
