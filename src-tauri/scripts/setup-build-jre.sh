@@ -383,12 +383,13 @@ cleanup_temp() {
     fi
 }
 
-# Clean up build JRE directory
-cleanup_build_jre() {
-    if [ -d "$BUILD_JRE_DIR" ]; then
-        print_info "Cleaning up existing build JRE directory..." >&2
-        rm -rf "$BUILD_JRE_DIR"
-        print_success "Build directory cleaned" >&2
+# Clean up specific platform JRE directory
+cleanup_platform_jre() {
+    local platform_path="$1"
+    if [ -d "$platform_path" ]; then
+        print_info "Cleaning up existing JRE at $platform_path..." >&2
+        rm -rf "$platform_path"
+        print_success "Platform JRE cleaned" >&2
     fi
 }
 
@@ -426,8 +427,8 @@ main() {
         fi
     fi
     
-    # Clean up existing build directory
-    cleanup_build_jre
+    # Clean up existing platform JRE (not the entire build-jre directory)
+    cleanup_platform_jre "$FINAL_JRE_PATH"
     
     # Trap to ensure cleanup on exit
     trap cleanup_temp EXIT
