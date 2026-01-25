@@ -4,3 +4,5 @@ export { addMonthlyWeeklyBreakdownSheet } from "./monthlyWeeklyBreakdownSheet";
 export { addDailyBalanceTrackerSheet } from "./dailyBalanceTrackerSheet";
 export { addTransactionAmountDistributionSheet } from "./transactionAmountDistributionSheet";
 export { addTopContactsSheet } from "./topContactsSheet";
+export { addMoneyInSheet } from "./moneyInSheet";
+export { addMoneyOutSheet } from "./moneyOutSheet";
