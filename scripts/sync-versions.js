@@ -12,7 +12,7 @@ const rootDir = process.cwd();
 
 // Read the version from package.json
 const packageJson = JSON.parse(
-  readFileSync(join(rootDir, "package.json"), "utf8")
+  readFileSync(join(rootDir, "package.json"), "utf8"),
 );
 const version = packageJson.version;
 
@@ -32,6 +32,20 @@ tauriConf.version = version;
 writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2) + "\n");
 console.log("✅ Updated src-tauri/tauri.conf.json");
 
+// Update README.md version badge
+const readmePath = join(rootDir, "README.md");
+try {
+  let readme = readFileSync(readmePath, "utf8");
+  readme = readme.replace(
+    /\[!\[Version\]\(https:\/\/img\.shields\.io\/badge\/version-[^-]+-blue\.svg\)\]/,
+    `[![Version](https://img.shields.io/badge/version-${version}-blue.svg)]`,
+  );
+  writeFileSync(readmePath, readme);
+  console.log(`✅ Updated README.md version badge to ${version}`);
+} catch (error) {
+  console.log("⚠️ Could not update README.md version badge");
+}
+
 // Update Android version (tauri.properties)
 const tauriPropertiesPath = join(
   rootDir,
@@ -39,7 +53,7 @@ const tauriPropertiesPath = join(
   "gen",
   "android",
   "app",
-  "tauri.properties"
+  "tauri.properties",
 );
 try {
   let tauriProperties = readFileSync(tauriPropertiesPath, "utf8");
@@ -53,18 +67,18 @@ try {
   // Update versionName and versionCode
   tauriProperties = tauriProperties.replace(
     /tauri\.android\.versionName=.*/,
-    `tauri.android.versionName=${version}`
+    `tauri.android.versionName=${version}`,
   );
   tauriProperties = tauriProperties.replace(
     /tauri\.android\.versionCode=.*/,
-    `tauri.android.versionCode=${versionCode}`
+    `tauri.android.versionCode=${versionCode}`,
   );
 
   writeFileSync(tauriPropertiesPath, tauriProperties);
   console.log(`✅ Updated Android version: ${version} (code: ${versionCode})`);
 } catch (error) {
   console.log(
-    "⚠️ Android tauri.properties not found - will be generated during build"
+    "⚠️ Android tauri.properties not found - will be generated during build",
   );
 }
 

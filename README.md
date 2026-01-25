@@ -5,7 +5,7 @@
   
   **Convert M-PESA Statement PDFs to CSV/Excel with Advanced Analytics**
   
-  [![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/DavidAmunga/mpesa2csv/releases)
+  [![Version](https://img.shields.io/badge/version-0.11.0-blue.svg)](https://github.com/DavidAmunga/mpesa2csv/releases)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-lightgrey.svg)](https://github.com/DavidAmunga/mpesa2csv/releases)
   [![Downloads](https://img.shields.io/github/downloads/DavidAmunga/mpesa2csv/total.svg)](https://github.com/DavidAmunga/mpesa2csv/releases)
@@ -28,20 +28,33 @@
 
 ### Core Functionality
 
-- **PDF to CSV/Excel Conversion** - Extract M-PESA statement data with high accuracy using Tabula
+- **PDF Conversion** - Extract M-PESA statement data with high accuracy using Tabula
 - **Password-Protected PDFs** - Seamlessly handle encrypted PDF files
-- **Multiple Export Formats** - Export as CSV or Excel (XLSX) with advanced formatting
+- **Multiple Export Formats** - Export to CSV, Excel (XLSX), JSON, OFX, QFX, or QIF
 - **Paybill Statement Support** - Full support for both regular and paybill M-PESA statements
+- **Webhook Integration** - Send data directly to external APIs with custom headers
+
+### Export Formats
+
+- **CSV** - Clean output with UTF-8 BOM encoding for Excel/Google Sheets
+- **Excel (XLSX)** - Professional formatting with multiple optional analysis sheets
+- **JSON** - Structured data for developers and custom integrations
+- **OFX/QFX** - Experimental support for accounting software (Quicken, QuickBooks)
+- **QIF** - Experimental support for legacy financial applications
+- **Webhook/API** - Direct integration with external services
 
 ### Advanced Analytics & Reports
 
 When exporting to Excel, optionally include:
 
+- **Money In Sheet** - All transactions where money was received, with totals
+- **Money Out Sheet** - All transactions where money was spent, with totals
 - **Charges & Fees Sheet** - Separate breakdown of all transaction charges and fees
 - **Financial Summary** - Comprehensive analysis with cash flow, spending patterns, and insights
 - **Monthly & Weekly Breakdown** - Pivot-like tables with time-based aggregations
 - **Daily Balance Tracker** - Day-by-day balance monitoring with spending pattern analysis
 - **Transaction Amount Distribution** - Categorized transaction analysis by amount ranges
+- **Top Contacts** - Top 20 people/entities you transact with most frequently
 
 ### Smart Filtering
 
