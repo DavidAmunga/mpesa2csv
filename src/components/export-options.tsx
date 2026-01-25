@@ -78,6 +78,17 @@ const SHEET_OPTIONS = [
     description:
       "Top 20 people/entities you send money to and receive money from, with totals and transaction counts. Excludes charges and fees.",
   },
+  {
+    key: "includeMoneyInSheet" as keyof ExportOptionsType,
+    name: "Money In",
+    description: "Separate sheet with all transactions where money was received",
+  },
+  {
+    key: "includeMoneyOutSheet" as keyof ExportOptionsType,
+    name: "Money Out",
+    description: "Separate sheet with all transactions where money was spent",
+  },
+  
 ];
 
 export default function ExportOptions({

@@ -3,6 +3,20 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Custom animations */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
   :root {

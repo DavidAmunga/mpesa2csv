@@ -7,6 +7,8 @@ import {
   addDailyBalanceTrackerSheet,
   addTransactionAmountDistributionSheet,
   addTopContactsSheet,
+  addMoneyInSheet,
+  addMoneyOutSheet,
 } from "./exports";
 import { applyTransactionFilters } from "./transactionFilters";
 import { formatDate } from "../utils/dateFormatter";
@@ -136,6 +138,16 @@ export class XlsxService {
     // Add Top Contacts sheet if requested
     if (options?.includeTopContactsSheet) {
       addTopContactsSheet(workbook, statement);
+    }
+
+    // Add Money In sheet if requested
+    if (options?.includeMoneyInSheet) {
+      addMoneyInSheet(workbook, statement);
+    }
+
+    // Add Money Out sheet if requested
+    if (options?.includeMoneyOutSheet) {
+      addMoneyOutSheet(workbook, statement);
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
