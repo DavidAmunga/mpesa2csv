@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.11.0
+
+### Minor Changes
+
+- 06804b8: feat: add money in/out sheets
+
 ## 0.10.2
 
 ### Patch Changes
