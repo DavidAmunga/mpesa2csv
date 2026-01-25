@@ -493,38 +493,39 @@ function App() {
                 />
               </div>
             ) : status === FileStatus.PROCESSING ? (
-              <div className="p-6 text-center flex flex-col items-center justify-center transition-all duration-300 min-h-[300px]">
-                <div className="relative mb-6 w-20 h-20">
-                  <div className="w-20 h-20 rounded-full bg-primary/20 animate-ping absolute"></div>
-                  <div className="w-20 h-20 rounded-full bg-primary/40 animate-pulse absolute"></div>
-                  <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center relative">
+              <div className="p-8 text-center flex flex-col items-center justify-center min-h-[400px]">
+                {/* Spinner */}
+                <div className="relative w-20 h-20 mb-6">
+                  <div className="w-20 h-20 rounded-full border-[3px] border-primary/20"></div>
+                  <div className="absolute inset-0 w-20 h-20 rounded-full border-[3px] border-transparent border-t-primary animate-spin"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
                     <span className="text-2xl">📊</span>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-lg font-semibold">
-                    Processing Your Statements
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    File {currentFileIndex + 1} of {files.length}
-                  </p>
+                <h3 className="text-lg font-semibold mb-2">
+                  Processing Your Statements
+                </h3>
+                
+                <p className="text-sm text-muted-foreground mb-8">
+                  File {currentFileIndex + 1} of {files.length}
+                </p>
 
-                  {/* Progress bar */}
-                  <div className="w-64 h-2 bg-muted rounded-full overflow-hidden">
+                {/* Progress bar */}
+                <div className="w-64 mb-4">
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary transition-all duration-300"
                       style={{
-                        width: `${
-                          ((currentFileIndex + 1) / files.length) * 100
-                        }%`,
+                        width: `${((currentFileIndex + 1) / files.length) * 100}%`,
                       }}
                     ></div>
                   </div>
                 </div>
 
+                {/* Current file */}
                 {files[currentFileIndex] && (
-                  <p className="text-xs text-muted-foreground mt-4 truncate max-w-full px-4">
+                  <p className="text-xs text-muted-foreground truncate max-w-xs">
                     {files[currentFileIndex].name}
                   </p>
                 )}
