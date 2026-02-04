@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.11.1
+
+### Patch Changes
+
+- [`46ea850`](https://github.com/DavidAmunga/mpesa2csv/commit/46ea8502c794ce635ad6a7b988245a6ccfbda068) Thanks [@DavidAmunga](https://github.com/DavidAmunga)! - fix: improve JRE bundling verification for Windows and macOS installers
+
 ## 0.11.0
 
 ### Minor Changes
