@@ -37,7 +37,7 @@
     ],
     "resources": {
       "resources/tabula-1.0.5-jar-with-dependencies.jar": "./",
-      "resources/build-jre": "./"
+      "resources/build-jre/**/*": "./build-jre/"
     },
     "publisher": "David Amunga",
     "category": "Utility",
