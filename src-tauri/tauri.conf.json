@@ -37,7 +37,7 @@
     ],
     "resources": {
       "resources/tabula-1.0.5-jar-with-dependencies.jar": "./",
-      "resources/build-jre": "./"
+      "resources/build-jre/**/*": "./build-jre/"
     },
     "publisher": "David Amunga",
     "category": "Utility",
@@ -49,7 +49,18 @@
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": ""
+      "timestampUrl": "",
+      "wix": {
+        "language": [
+          "en-US"
+        ],
+        "fragmentPaths": [],
+        "componentRefs": []
+      },
+      "nsis": {
+        "compression": "lzma",
+        "displayLanguageSelector": false
+      }
     },
     "macOS": {
       "frameworks": [],

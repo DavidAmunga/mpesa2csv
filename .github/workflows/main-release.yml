@@ -613,6 +613,124 @@ jobs:
 
           echo "✅ Tauri build completed successfully"
           echo "build_success=true" >> $GITHUB_OUTPUT
+
+      - name: Verify JRE bundling (Windows)
+        if: matrix.platform == 'windows-latest' && steps.tauri-build.outputs.build_success == 'true'
+        shell: bash
+        run: |
+          echo "🔍 Verifying JRE is bundled in Windows installers..."
+
+          # Check NSIS installer
+          NSIS_INSTALLER=$(find src-tauri/target/*/release/bundle/nsis -name "*.exe" 2>/dev/null | head -1)
+          if [ -n "$NSIS_INSTALLER" ]; then
+            echo "Found NSIS installer: $NSIS_INSTALLER"
+            
+            # Extract and check contents (basic size check)
+            INSTALLER_SIZE=$(stat -c%s "$NSIS_INSTALLER" 2>/dev/null || stat -f%z "$NSIS_INSTALLER" 2>/dev/null || echo "0")
+            INSTALLER_SIZE_MB=$((INSTALLER_SIZE / 1024 / 1024))
+            echo "NSIS installer size: ${INSTALLER_SIZE_MB}MB"
+            
+            # JRE is ~44MB, so installer should be at least 50MB to include it
+            if [ $INSTALLER_SIZE_MB -lt 50 ]; then
+              echo "WARNING: NSIS installer is only ${INSTALLER_SIZE_MB}MB"
+              echo "This may indicate JRE was not bundled (expected >50MB)"
+              echo "JRE size before bundling:"
+              du -sh src-tauri/resources/build-jre || echo "JRE directory not found"
+              exit 1
+            else
+              echo "NSIS installer size looks good (${INSTALLER_SIZE_MB}MB includes JRE)"
+            fi
+          else
+            echo "NSIS installer not found"
+          fi
+
+          # Check MSI installer
+          MSI_INSTALLER=$(find src-tauri/target/*/release/bundle/msi -name "*.msi" 2>/dev/null | head -1)
+          if [ -n "$MSI_INSTALLER" ]; then
+            echo "Found MSI installer: $MSI_INSTALLER"
+            
+            MSI_SIZE=$(stat -c%s "$MSI_INSTALLER" 2>/dev/null || stat -f%z "$MSI_INSTALLER" 2>/dev/null || echo "0")
+            MSI_SIZE_MB=$((MSI_SIZE / 1024 / 1024))
+            echo "MSI installer size: ${MSI_SIZE_MB}MB"
+            
+            if [ $MSI_SIZE_MB -lt 50 ]; then
+              echo "⚠️ WARNING: MSI installer is only ${MSI_SIZE_MB}MB"
+              echo "⚠️ This may indicate JRE was not bundled (expected >50MB)"
+              echo "JRE size before bundling:"
+              du -sh src-tauri/resources/build-jre || echo "JRE directory not found"
+              exit 1
+            else
+              echo "✅ MSI installer size looks good (${MSI_SIZE_MB}MB includes JRE)"
+            fi
+          else
+            echo "⚠️ MSI installer not found"
+          fi
+
+          echo "✅ JRE bundling verification passed"
+
+      - name: Verify JRE bundling (macOS)
+        if: matrix.platform == 'macos-latest' && steps.tauri-build.outputs.build_success == 'true'
+        shell: bash
+        run: |
+          echo "🔍 Verifying JRE is bundled in macOS .app..."
+
+          # Find the .app bundle
+          APP_BUNDLE=$(find src-tauri/target/*/release/bundle/macos -name "*.app" -type d 2>/dev/null | head -1)
+
+          if [ -z "$APP_BUNDLE" ]; then
+            echo "❌ .app bundle not found"
+            exit 1
+          fi
+
+          echo "Found .app bundle: $APP_BUNDLE"
+
+          # Determine which JRE should be present based on target
+          if [[ "${{ matrix.target }}" == "aarch64-apple-darwin" ]]; then
+            JRE_SUBDIR="jre-macos-arm64"
+          else
+            JRE_SUBDIR="jre-macos-x64"
+          fi
+
+          # Check if JRE is in the .app bundle
+          JRE_PATH="$APP_BUNDLE/Contents/Resources/build-jre/$JRE_SUBDIR"
+
+          if [ ! -d "$JRE_PATH" ]; then
+            echo "❌ JRE directory not found in .app bundle at: $JRE_PATH"
+            echo "Contents of Resources/build-jre:"
+            ls -la "$APP_BUNDLE/Contents/Resources/build-jre" || echo "build-jre directory doesn't exist"
+            exit 1
+          fi
+
+          echo "✅ JRE directory found: $JRE_PATH"
+
+          # Check if java executable exists
+          JAVA_EXEC="$JRE_PATH/bin/java"
+          if [ ! -f "$JAVA_EXEC" ]; then
+            # Try alternate path for macOS JRE structure
+            JAVA_EXEC="$JRE_PATH/Contents/Home/bin/java"
+          fi
+
+          if [ ! -f "$JAVA_EXEC" ]; then
+            echo "❌ Java executable not found in JRE"
+            echo "Checked paths:"
+            echo "  - $JRE_PATH/bin/java"
+            echo "  - $JRE_PATH/Contents/Home/bin/java"
+            echo "JRE contents:"
+            ls -la "$JRE_PATH" || true
+            exit 1
+          fi
+
+          echo "✅ Java executable found: $JAVA_EXEC"
+
+          # Check JRE size
+          JRE_SIZE=$(du -sh "$JRE_PATH" | cut -f1)
+          echo "JRE size in bundle: $JRE_SIZE"
+
+          # Check overall .app size
+          APP_SIZE=$(du -sh "$APP_BUNDLE" | cut -f1)
+          echo ".app bundle total size: $APP_SIZE"
+
+          echo "✅ macOS JRE bundling verification passed"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
