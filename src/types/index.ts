@@ -1,6 +1,7 @@
 export interface MPesaStatement {
   transactions: Transaction[];
   fileName?: string;
+  totalCharges: number;
 }
 
 export interface Transaction {
