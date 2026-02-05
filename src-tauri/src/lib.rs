@@ -42,7 +42,7 @@ async fn extract_pdf_tables(
     let jar_path = normalize_windows_path(jar_path);
     
     let jre_folder = if cfg!(target_os = "windows") {
-        "build-jre/jre-windows-x64"
+        "jre-windows-x64"
     } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
         "build-jre/jre-macos-x64"
     } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
