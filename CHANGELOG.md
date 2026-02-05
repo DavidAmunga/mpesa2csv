@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.11.3
+
+### Patch Changes
+
+- [`fa44fa8`](https://github.com/DavidAmunga/mpesa2csv/commit/fa44fa8d8d14de521626244d4f13a1a1aa1769dd) Thanks [@DavidAmunga](https://github.com/DavidAmunga)! - fix: windows jre folder bundling
+
 ## 0.11.2
 
 ### Patch Changes
