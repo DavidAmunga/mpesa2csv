@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.11.2
+
+### Patch Changes
+
+- [`2053a87`](https://github.com/DavidAmunga/mpesa2csv/commit/2053a8725c43a4fcd23ef5cb1e370dc8ceab20ea) Thanks [@DavidAmunga](https://github.com/DavidAmunga)! - revert:windows installers compression
+
 ## 0.11.1
 
 ### Patch Changes
