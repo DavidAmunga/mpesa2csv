@@ -140,7 +140,7 @@ export class TabulaService {
    */
   static calculateTotalCharges(transactions: Transaction[]): number {
     const chargeTransactions = transactions.filter((transaction) =>
-      transaction.details.toLowerCase().includes("charge")
+      transaction.details.toLowerCase().includes("charge"),
     );
 
     return chargeTransactions.reduce((sum, transaction) => {
