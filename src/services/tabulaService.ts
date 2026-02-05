@@ -10,7 +10,7 @@ export class TabulaService {
    */
   static async extractTablesFromPdf(
     file: File,
-    password?: string
+    password?: string,
   ): Promise<string> {
     const timestamp = Date.now();
     const tempInputName = `${FILE_PREFIXES.TEMP_INPUT}${timestamp}.pdf`;
@@ -48,7 +48,7 @@ export class TabulaService {
       } catch (error) {
         console.warn(
           "Failed to clean up temp files during error handling:",
-          error
+          error,
         );
       }
       throw new Error(`Tabula extraction failed: ${error.message || error}`);
@@ -63,7 +63,7 @@ export class TabulaService {
     const lines = csvContent.split("\n").filter((line) => line.trim());
 
     if (lines.length === 0) {
-      return { transactions: [] };
+      return { transactions: [], totalCharges: 0 };
     }
 
     let headerIndex = -1;
@@ -80,7 +80,7 @@ export class TabulaService {
     }
 
     if (headerIndex === -1) {
-      return { transactions: [] };
+      return { transactions: [], totalCharges: 0 };
     }
 
     const headerLine = lines[headerIndex].toLowerCase();
@@ -123,13 +123,29 @@ export class TabulaService {
       transactions.push(transaction);
     }
 
+    const sortedTransactions = transactions.sort((a, b) => {
+      const dateA = new Date(a.completionTime);
+      const dateB = new Date(b.completionTime);
+      return dateA.getTime() - dateB.getTime();
+    });
+
     return {
-      transactions: transactions.sort((a, b) => {
-        const dateA = new Date(a.completionTime);
-        const dateB = new Date(b.completionTime);
-        return dateA.getTime() - dateB.getTime();
-      }),
+      transactions: sortedTransactions,
+      totalCharges: this.calculateTotalCharges(sortedTransactions),
     };
+  }
+
+  /**
+   * Calculate total charges using the same logic as chargesSheet.ts
+   */
+  static calculateTotalCharges(transactions: Transaction[]): number {
+    const chargeTransactions = transactions.filter((transaction) =>
+      transaction.details.toLowerCase().includes("charge")
+    );
+
+    return chargeTransactions.reduce((sum, transaction) => {
+      return sum + (transaction.withdrawn || transaction.paidIn || 0);
+    }, 0);
   }
 
   private static parseCSVLine(line: string): string[] {

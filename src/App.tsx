@@ -216,9 +216,12 @@ function App() {
       return dateA.getTime() - dateB.getTime();
     });
 
+    const totalCharges = TabulaService.calculateTotalCharges(allTransactions);
+
     return {
       transactions: allTransactions,
       fileName: `Combined_${statements.length}_statements`,
+      totalCharges,
     };
   };
 
@@ -540,6 +543,13 @@ function App() {
                     Processed {statements[0].transactions.length} transactions
                     from {files.length} statement{files.length > 1 ? "s" : ""} •
                     Choose your export options below
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Total Charges: KES{" "}
+                    {(statements[0].totalCharges).toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </p>
                 </div>
 
