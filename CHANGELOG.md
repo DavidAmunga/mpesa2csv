@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.12.0
+
+### Minor Changes
+
+- [#59](https://github.com/DavidAmunga/mpesa2csv/pull/59) [`dd6ea1b`](https://github.com/DavidAmunga/mpesa2csv/commit/dd6ea1b3200aed05737467b785c79d9a5e96da9d) Thanks [@DavidAmunga](https://github.com/DavidAmunga)! - feat: add total charges in header summary
+
 ## 0.11.4
 
 ### Patch Changes
