@@ -1,5 +1,11 @@
 # mpesa2csv
 
+## 0.11.4
+
+### Patch Changes
+
+- [`c7be488`](https://github.com/DavidAmunga/mpesa2csv/commit/c7be4883974d76f33415e93ccb7daa05b54348fd) Thanks [@DavidAmunga](https://github.com/DavidAmunga)! - fix: windows build-jre folder path
+
 ## 0.11.3
 
 ### Patch Changes
